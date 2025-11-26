@@ -376,3 +376,6 @@ Documentação complementar:
 ---
 > Última atualização: Gerado automaticamente para descrever cada parte do projeto.
 > Versão estendida com detalhes operacionais, segurança e troubleshooting.
+
+## Licença
+Este projeto está licenciado sob a Licença MIT. Consulte o arquivo `LICENSE` na raiz do repositório para o texto completo da licença.
