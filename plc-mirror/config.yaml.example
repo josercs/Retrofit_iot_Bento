@@ -1,0 +1,11 @@
+﻿source:
+  ip: 196.168.1.121
+destination:
+  ip: 192.168.1.122  # TODO: ajuste para o IP do PLC destino
+
+# DB e conexão
+db_number: 1
+db_size: 16
+rack: 0
+slot: 1
+poll_interval: 1.0

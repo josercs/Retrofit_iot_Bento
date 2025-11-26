@@ -1,0 +1,71 @@
+{
+  "uid": "debug-s7",
+  "title": "Debug s7_db1",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["debug", "edge"],
+  "templating": {
+    "list": [
+      {
+        "name": "ip",
+        "label": "ip",
+        "type": "query",
+        "includeAll": true,
+        "allValue": "",
+        "query": "import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"ip\")",
+        "datasource": {"type": "influxdb", "uid": "influxdb"},
+        "refresh": 2
+      },
+      {
+        "name": "db",
+        "label": "db",
+        "type": "query",
+        "includeAll": true,
+        "allValue": "",
+        "query": "import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"db\")",
+        "datasource": {"type": "influxdb", "uid": "influxdb"},
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "contador_bom (derivada/min)",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\" and (v.ip == \"\" or r.ip == v.ip) and (v.db == \"\" or string(v: r.db) == v.db))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: mean)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Todos os campos s7_db1 (última hora)",
+      "description": "Painel bruto sem variáveis v.* para validar ingestão básica.",
+      "gridPos": {"x": 0, "y": 8, "w": 24, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+        {
+          "refId": "RAW",
+          "query": "from(bucket: \"processo\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\")\n  |> keep(columns: [\"_time\", \"_field\", \"_value\", \"ip\", \"db\"])"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Últimos pontos (10)",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+        {
+          "refId": "B",
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and (v.ip == \"\" or r.ip == v.ip) and (v.db == \"\" or string(v: r.db) == v.db))\n  |> keep(columns: [\"_time\", \"_field\", \"_value\", \"ip\", \"db\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 10)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+services:
+  collector:
+    build: .
+    container_name: edge-collector
+    command: ["python", "-m", "src.agent", "--config", "/app/config.yaml"]
+    restart: unless-stopped
+    environment:
+      CONFIG: /app/config.yaml
+      PYTHONUNBUFFERED: "1"
+      # Identidade opcional para SaaS
+      TENANT_ID: "${TENANT_ID:-tenant01}"
+      PLC_ID: "${PLC_ID:-linha1_prensa}"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./infra/mosquitto/certs/ca.crt:/app/ca.crt:ro
+    networks:
+      edge:
+        aliases:
+          - collector
+    depends_on:
+      - mosquitto
+    ports:
+      - "9108:9108"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:9108/metrics', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    restart: unless-stopped
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infra/mosquitto/data:/mosquitto/data
+      - ./infra/mosquitto/certs:/mosquitto/certs
+      - ./infra/mosquitto/auth:/mosquitto/auth
+    ports:
+      - "8883:8883"
+    networks:
+      - edge
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: admin123
+      DOCKER_INFLUXDB_INIT_ORG: planta
+      DOCKER_INFLUXDB_INIT_BUCKET: processo
+      DOCKER_INFLUXDB_INIT_RETENTION: 30d
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - influx-data:/var/lib/influxdb2
+    ports:
+      - "8086:8086"
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  telegraf:
+    image: telegraf:1.30
+    container_name: telegraf
+    restart: unless-stopped
+    volumes:
+      - ./infra/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - ./infra/mosquitto/certs:/etc/telegraf/certs:ro
+    environment:
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      TELEGRAF_MQTT_PASSWORD: EdgeAgent!2025
+    networks:
+      - edge
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      collector:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      - influxdb
+    environment:
+      - GRAFANA_INFLUX_TOKEN=${INFLUX_TOKEN}
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      - GF_SERVER_HTTP_ADDR=0.0.0.0
+      - GF_SERVER_HTTP_PORT=3000
+      - GF_LOG_MODE=console
+      - GF_LOG_LEVEL=debug
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    networks:
+      - edge
+
+networks:
+  edge: {}
+
+volumes:
+  grafana-data: {}
+  influx-data: {}

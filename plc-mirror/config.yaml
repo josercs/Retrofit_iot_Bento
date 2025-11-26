@@ -1,0 +1,26 @@
+source:
+  ip: "192.168.0.121"
+  rack: 0
+  slot: 1
+  db_number: 1
+  db_size: 14
+  poll_interval: 1.0
+
+output:
+  mode: "mqtt"
+  mqtt:
+    broker: "mosquitto"  # use '127.0.0.1' if running agent outside Docker
+    port: 8883
+    # MQTT topic can use env placeholders, e.g.: plc/${TENANT_ID}/${PLC_ID}
+    topic: "plc/${TENANT_ID}/${PLC_ID}"
+    qos: 0
+    retain: false
+    tls: true
+    ca_file: "/app/ca.crt"
+    tls_insecure: false
+    username: "edge_agent"
+    password: "EdgeAgent!2025"
+
+metrics_port: 9108
+store_path: "queue.sqlite"
+

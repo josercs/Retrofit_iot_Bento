@@ -1,0 +1,3 @@
+subjectAltName=DNS:mosquitto
+keyUsage=digitalSignature
+extendedKeyUsage=serverAuth

@@ -1,0 +1,18 @@
+services:
+  agent:
+    build: .
+    container_name: edge-agent
+    command: ["python","-m","src.agent","--config","/app/config.yaml"]
+    environment:
+      PLC_IP: ${PLC_IP}
+      DB_NUMBER: ${DB_NUMBER:-1}
+      DB_SIZE: ${DB_SIZE:-14}
+      OUTPUT_MODE: ${OUTPUT_MODE:-stdout}
+      METRICS_PORT: ${METRICS_PORT:-9108}
+      TENANT_ID: ${TENANT_ID:-tenant01}
+      PLC_ID: ${PLC_ID:-linha1_prensa}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "${METRICS_PORT:-9108}:9108"
+    restart: unless-stopped
