@@ -1,0 +1,87 @@
+{
+  "uid": "edge-s7-overview",
+  "title": "Edge S7 Overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1002,
+  "refresh": "5s",
+  "tags": ["iot", "edge", "s7"],
+  "templating": {
+    "list": [
+  {"name":"ip","type":"query","includeAll":true,"allValue":"","current":{"selected":true,"text":"All","value":""},
+  "query":"import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"ip\")",
+    "datasource":{"type":"influxdb","uid":"influxdb"}},
+  {"name":"db","type":"query","includeAll":true,"allValue":"","current":{"selected":true,"text":"All","value":""},
+  "query":"import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"db\")",
+    "datasource":{"type":"influxdb","uid":"influxdb"}}
+    ]
+  },
+  "panels": [
+  {"type":"stat","title":"Edge UP","gridPos":{"x":0,"y":0,"w":4,"h":4},
+   "datasource":{"type":"influxdb","uid":"influxdb"},
+  "targets":[{"query":"from(bucket: \"processo\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"edge_up\")\n  |> last()"}],
+   "options":{"reduceOptions":{"calcs":["lastNotNull"]}}},
+  {"type":"stat","title":"Leituras OK/min","gridPos":{"x":4,"y":0,"w":6,"h":4},
+   "datasource":{"type":"influxdb","uid":"influxdb"},
+  "targets":[{"query":"from(bucket: \"processo\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"plc_read_ok_total\")\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)\n  |> last()"}]},
+  {"type":"stat","title":"Backlog","gridPos":{"x":10,"y":0,"w":4,"h":4},
+   "datasource":{"type":"influxdb","uid":"influxdb"},
+  "targets":[{"query":"from(bucket: \"processo\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"edge_backlog_size\")\n  |> last()"}]},
+  {"type":"stat","title":"Latência S7 (ms)","gridPos":{"x":14,"y":0,"w":4,"h":4},
+   "datasource":{"type":"influxdb","uid":"influxdb"},
+  "targets":[{"query":"from(bucket: \"processo\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"plc_read_latency_ms\")\n  |> last()"}]},
+  {
+      "type": "stat",
+      "title": "Máquina Ligada",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+    {"query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"maquina_ligada\")\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> last()"}
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "value"}
+  },
+  {
+      "type": "stat",
+      "title": "Peças Boas (Δ)",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+    {"query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\")\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)\n  |> last()"}
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "value"}
+  },
+  {
+      "type": "stat",
+      "title": "Peças Ruins (Δ)",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+    {"query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_ruim\")\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)\n  |> last()"}
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "value"}
+  },
+  {
+      "type": "timeseries",
+      "title": "AI Corrente / Vibração",
+      "gridPos": {"x": 0, "y": 4, "w": 18, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+    {"refId": "A", "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and (r._field == \"AI_Corrente\" or r._field == \"AI_Vibracao\"))\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Taxa de Produção (pcs/min)",
+      "gridPos": {"x": 0, "y": 12, "w": 18, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+    {"refId": "A", "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\")\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> derivative(unit: 1m, nonNegative: true)"}
+      ]
+    },
+    {"type":"table","title":"IPs Ativos (últimos 15m)","gridPos":{"x":18,"y":0,"w":6,"h":12},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+    "targets":[{"refId":"A","query":"from(bucket: \"processo\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\")\n  |> group(columns:[\"ip\"])\n  |> max(column: \"_time\")\n  |> keep(columns:[\"ip\", \"_time\"])\n  |> rename(columns:{_time: \"last_seen\"})"}],
+      "fieldConfig":{"defaults":{"custom":{}}}}
+  ]
+}

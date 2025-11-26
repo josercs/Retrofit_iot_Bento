@@ -1,0 +1,7 @@
+﻿PyYAML>=6.0
+paho-mqtt>=2.1
+requests>=2.32
+pydantic>=2.9
+prometheus-client>=0.20
+sentry-sdk>=2.17
+python-snap7>=1.3

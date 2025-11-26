@@ -1,0 +1,55 @@
+{
+  "uid": "oee-starter",
+  "title": "OEE Starter",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["oee", "edge"],
+  "templating": {
+    "list": [
+      {"name":"ip","type":"query","query":"import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"ip\")","datasource":{"type":"influxdb","uid":"influxdb"}},
+      {"name":"db","type":"query","query":"import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"db\")","datasource":{"type":"influxdb","uid":"influxdb"}}
+    ]
+  },
+  "panels": [
+    { "type": "stat", "title": "Disponibilidade (%)", "gridPos": {"x":0,"y":0,"w":8,"h":4},
+      "datasource": {"type":"influxdb","uid":"influxdb"},
+      "targets": [
+  {"query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"maquina_ligada\")\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: r._value * 100.0 }))\n  |> last()"}
+      ],
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"value","textMode":"value"}
+    },
+    { "type": "stat", "title": "Performance (pcs/min)", "gridPos": {"x":8,"y":0,"w":8,"h":4},
+      "datasource": {"type":"influxdb","uid":"influxdb"},
+      "targets": [
+  {"query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\")\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> last()"}
+      ]
+    },
+    { "type": "stat", "title": "Qualidade (%)", "gridPos": {"x":16,"y":0,"w":8,"h":4},
+      "datasource": {"type":"influxdb","uid":"influxdb"},
+      "targets": [
+  {"query": "import \"experimental\"\nprod = from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and (r._field == \"contador_bom\" or r._field == \"contador_ruim\"))\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn:\"_value\")\n  |> map(fn: (r) => ({ r with qual_pct: (float(v: r.contador_bom) / float(v: (r.contador_bom + r.contador_ruim))) * 100.0 }))\n  |> keep(columns:[\"_time\", \"qual_pct\"])\n  |> rename(columns:{qual_pct: \"_value\"})\n  |> last()"}
+      ]
+    },
+    { "type": "timeseries", "title": "Disponibilidade (1m)", "gridPos": {"x":0,"y":4,"w":12,"h":8},
+      "datasource": {"type":"influxdb","uid":"influxdb"},
+      "targets": [
+  {"query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"maquina_ligada\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: r._value * 100.0 }))"}
+      ]
+    },
+    { "type": "timeseries", "title": "Performance (pcs/min)", "gridPos": {"x":12,"y":4,"w":12,"h":8},
+      "datasource": {"type":"influxdb","uid":"influxdb"},
+      "targets": [
+  {"query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\")\n  |> derivative(unit: 1m, nonNegative: true)"}
+      ]
+    }
+    ,{ "type": "stat", "title": "OEE (%)", "gridPos": {"x":0,"y":12,"w":8,"h":4},
+      "datasource": {"type":"influxdb","uid":"influxdb"},
+      "targets": [
+  {"query": "import \"influxdata/influxdb/v1\"\nimport \"experimental\"\n// Availability (A)\nA = from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"maquina_ligada\")\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> last()\n// Performance (P) pieces/min vs ideal 'ideal_rate' (set variable later)\nP = from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\")\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> last()\n// Quality (Q)\nQ = from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and (r._field == \"contador_bom\" or r._field == \"contador_ruim\"))\n  |> filter(fn: (r) => (r.ip == \"${ip}\" or \"${ip}\" == \"\") and (r.db == \"${db}\" or \"${db}\" == \"\"))\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn:\"_value\")\n  |> last()\njoin(tables:{a:A, p:P}, on:[\"_time\"], method:\"inner\")\n  |> join(tables:{ap: _, q:Q}, on:[\"_time\"], method:\"inner\")\n  |> map(fn: (r) => ({ r with _value: if exists r._value_a and exists r._value_p and exists r.contador_bom and exists r.contador_ruim and (r.contador_bom + r.contador_ruim) > 0 then (r._value_a * (r._value_p /  (float(v: experimental.toFloat(v: 60.0)))) * (float(v: r.contador_bom) / float(v: r.contador_bom + r.contador_ruim))) * 100.0 else 0.0 }))\n  |> keep(columns:[\"_time\", \"_value\"])\n  |> last()"}
+      ],
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]}}
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: Edge Alerts
+    folder: Edge
+    interval: 1m
+    rules:
+      - uid: edge-down
+        title: Edge DOWN (sem dados >2m)
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 5m
+              to: 0m
+            datasourceUid: influxdb
+            model:
+              refId: A
+              query: |
+                from(bucket: "processo")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r._measurement == "edge_up")
+                  |> filter(fn: (r) => r._field == "gauge")
+                  |> last()
+                  |> map(fn: (r) => ({ r with _value: if exists r._value then r._value else 0.0 }))
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: "Agente de borda parece OFF para ${ip}/${db}"
+        labels:
+          severity: critical
+
+      - uid: high-latency
+        title: Latência S7 alta
+        condition: B
+        data:
+          - refId: B
+            relativeTimeRange:
+              from: 10m
+              to: 0m
+            datasourceUid: influxdb
+            model:
+              refId: B
+              query: |
+                from(bucket: "processo")
+                  |> range(start: -10m)
+                  |> filter(fn: (r) => r._measurement == "plc_read_latency_ms")
+                  |> filter(fn: (r) => r._field == "gauge")
+                  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+                  |> last()
+                  |> map(fn: (r) => ({ r with _value: if r._value > 150.0 then 1.0 else 0.0 }))
+        for: 2m
+        annotations:
+          summary: "Latência média > 150 ms"
+        labels:
+          severity: warning
+
+      - uid: publish-failures
+        title: Falhas de publicação por minuto
+        condition: C
+        data:
+          - refId: C
+            relativeTimeRange:
+              from: 10m
+              to: 0m
+            datasourceUid: influxdb
+            model:
+              refId: C
+              query: |
+                from(bucket: "processo")
+                  |> range(start: -10m)
+                  |> filter(fn: (r) => r._measurement == "plc_publish_fail_total")
+                  |> filter(fn: (r) => r._field == "counter")
+                  |> derivative(unit: 1m, nonNegative: true)
+                  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)
+                  |> last()
+                  |> map(fn: (r) => ({ r with _value: if r._value > 0.0 then 1.0 else 0.0 }))
+        for: 1m
+        annotations:
+          summary: "> 0 falhas/min em publicações"
+        labels:
+          severity: warning

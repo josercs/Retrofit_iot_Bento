@@ -1,0 +1,6 @@
+user edge_agent
+topic write plc/#
+topic read $SYS/#
+
+user telegraf
+topic read plc/#

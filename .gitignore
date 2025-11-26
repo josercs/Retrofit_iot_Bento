@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual envs
+.venv/
+venv/
+
+# Pytest
+.pytest_cache/
+
+# VS Code
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Local data and caches (keep out of repo)
+data/
+queue.sqlite
+
+# Docker artifacts
+**/data/influx/
+**/data/grafana/
+
+# Misc
+*.tmp
+*.swp
+*.swo
+
+# Env & secrets
+.env
+.env.*
+infra/mosquitto/certs/
+infra/mosquitto/auth/passwordfile

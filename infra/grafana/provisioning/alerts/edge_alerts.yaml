@@ -1,0 +1,146 @@
+apiVersion: 1
+
+groups:
+  - name: edge-alerts
+    folder: Edge
+    interval: 1m
+    rules:
+      - uid: vib-high
+        title: Vibração Alta
+        condition: C
+        data:
+          - refId: A
+            queryType: flux
+            datasourceUid: influxdb
+            query: |
+              from(bucket: "processo")
+                |> range(start: -5m)
+                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "AI_Vibracao")
+                |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
+          - refId: B
+            queryType: math
+            expression: "$A"
+          - refId: C
+            queryType: reduce
+            expression: B
+            reducer: last
+            conditions:
+              - type: gt
+                params: [10]
+        for: 1m
+        annotations:
+          severity: warning
+        labels:
+          category: vibracao
+      - uid: corrente-faixa
+        title: Corrente Fora de Faixa
+        condition: C
+        data:
+          - refId: A
+            queryType: flux
+            datasourceUid: influxdb
+            query: |
+              from(bucket: "processo")
+                |> range(start: -5m)
+                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "AI_Corrente")
+                |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
+          - refId: B
+            queryType: math
+            expression: "$A"
+          - refId: C
+            queryType: reduce
+            expression: B
+            reducer: last
+            conditions:
+              - type: lt
+                params: [2]
+              - type: gt
+                params: [15]
+        for: 2m
+        annotations:
+          severity: critical
+        labels:
+          category: corrente
+      - uid: oee-low
+        title: OEE Baixo
+        condition: C
+        data:
+          - refId: A
+            queryType: flux
+            datasourceUid: influxdb
+            query: |
+              from(bucket: "processo")
+                |> range(start: -15m)
+                |> filter(fn: (r) => r._measurement == "oee" and r._field == "oee_pct")
+                |> aggregateWindow(every: 5m, fn: last, createEmpty: false)
+          - refId: B
+            queryType: math
+            expression: "$A"
+          - refId: C
+            queryType: reduce
+            expression: B
+            reducer: last
+            conditions:
+              - type: lt
+                params: [60]
+        for: 5m
+        annotations:
+          severity: warning
+        labels:
+          category: oee
+      - uid: edge-down
+        title: Edge Up Ausente
+        condition: C
+        data:
+          - refId: A
+            queryType: flux
+            datasourceUid: influxdb
+            query: |
+              from(bucket: "processo")
+                |> range(start: -5m)
+                |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "edge_up")
+                |> last()
+          - refId: B
+            queryType: math
+            expression: "$A"
+          - refId: C
+            queryType: reduce
+            expression: B
+            reducer: last
+            conditions:
+              - type: lt
+                params: [1]
+        for: 30s
+        annotations:
+          severity: critical
+        labels:
+          category: health
+      - uid: heartbeat-stale
+        title: Heartbeat Stale
+        condition: C
+        data:
+          - refId: A
+            queryType: flux
+            datasourceUid: influxdb
+            query: |
+              import "influxdata/influxdb/schema"
+              from(bucket: "processo")
+                |> range(start: -2m)
+                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "heartbeat")
+                |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
+                |> last()
+          - refId: B
+            queryType: math
+            expression: "$A"
+          - refId: C
+            queryType: reduce
+            expression: B
+            reducer: last
+            conditions:
+              - type: lt
+                params: [1]
+        for: 10s
+        annotations:
+          severity: warning
+        labels:
+          category: health
