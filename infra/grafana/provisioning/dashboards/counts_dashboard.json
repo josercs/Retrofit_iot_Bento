@@ -1,0 +1,55 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "title": "Contagem PLC (DB500)",
+  "timezone": "",
+  "refresh": "10s",
+  "panels": [
+    {
+      "title": "Contador Bom",
+      "type": "timeseries",
+      "datasource": {"type":"influxdb","uid":"InfluxDB"},
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"s7_db500\") |> filter(fn: (r) => r._field == \"contador_bom\") |> filter(fn: (r) => if exists r.tenant_id then (r.tenant_id == string(v: varTenant)) else true) |> filter(fn: (r) => if exists r.plc_id then (r.plc_id == string(v: varPlc)) else true) |> aggregateWindow(every: 1m, fn: last, createEmpty: false) |> yield(name: \"last\")"
+        }
+      ]
+    },
+    {
+      "title": "Contador Ruim",
+      "type": "timeseries",
+      "datasource": {"type":"influxdb","uid":"InfluxDB"},
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"s7_db500\") |> filter(fn: (r) => r._field == \"contador_ruim\") |> filter(fn: (r) => if exists r.tenant_id then (r.tenant_id == string(v: varTenant)) else true) |> filter(fn: (r) => if exists r.plc_id then (r.plc_id == string(v: varPlc)) else true) |> aggregateWindow(every: 1m, fn: last, createEmpty: false) |> yield(name: \"last\")"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "varTenant",
+        "label": "tenant_id",
+        "type": "query",
+        "datasource": "InfluxDB",
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"processo\", tag: \"tenant_id\")",
+        "refresh": 1
+      },
+      {
+        "name": "varPlc",
+        "label": "plc_id",
+        "type": "query",
+        "datasource": "InfluxDB",
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"processo\", tag: \"plc_id\")",
+        "refresh": 1
+      }
+    ]
+  }
+}

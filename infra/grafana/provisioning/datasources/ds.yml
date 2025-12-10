@@ -1,14 +1,15 @@
 apiVersion: 1
 datasources:
   - name: InfluxDB
-    uid: influxdb
     type: influxdb
     access: proxy
     isDefault: true
-    url: http://influxdb:8086
+    editable: true
     jsonData:
       version: Flux
       organization: planta
       defaultBucket: processo
+      tlsSkipVerify: true
     secureJsonData:
+      # Usa o token de leitura injetado via env GRAFANA_INFLUX_TOKEN
       token: ${GRAFANA_INFLUX_TOKEN}

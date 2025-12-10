@@ -1,11 +1,81 @@
-﻿source:
-  ip: 196.168.1.121
-destination:
-  ip: 192.168.1.122  # TODO: ajuste para o IP do PLC destino
+﻿#############################################
+# Exemplo genérico de configuração do Agente
+# Multi-DB (DB500 processo + DB200 balanças)
+#
+# Copie este arquivo para `config.yaml` e ajuste
+# os valores conforme seu ambiente.
+#############################################
 
-# DB e conexão
-db_number: 1
-db_size: 16
-rack: 0
-slot: 1
-poll_interval: 1.0
+# Conexão ao PLC de origem
+source:
+  ip: "192.168.0.121"
+  rack: 0
+  slot: 1
+  poll_interval: 1.0  # segundos entre leituras
+
+# Publicação e saída
+output:
+  mode: "mqtt"  # mqtt | http | stdout
+  mqtt:
+    broker: "mosquitto"   # ou 127.0.0.1 se fora do Docker
+    port: 8883
+    # Tópico com placeholders (multi‑locatários): plc/${TENANT_ID}/${PLC_ID}
+    topic: "plc/${TENANT_ID}/${PLC_ID}"
+    qos: 0
+    retain: false
+    tls: true
+    ca_file: "/app/ca.crt"
+    tls_insecure: false
+    username: "edge_agent"
+    password: "Troque-esta-senha"
+
+# Métricas Prometheus
+metrics_port: 9108
+
+# Store‑and‑forward (fila local)
+store_path: "queue.sqlite"
+
+# Lista de DBs a serem lidos no ciclo do agente.
+# Cada item define um bloco de dados com seu parser/medição.
+#
+# name: nome lógico do bloco (ex.: processo, balancas)
+# db_number: número do DB no PLC (ex.: 500, 200)
+# db_size: tamanho em bytes a ler (use de acordo com layout)
+# measurement: nome da medição enviada (ex.: s7_db500)
+# parser: como interpretar bytes (ex.: db500, db200_balancas)
+#
+dbs:
+  - name: "processo"
+    db_number: 500
+    db_size: 14   # exemplo: layout fixo 14 bytes
+    measurement: "s7_db500"
+    parser: "db500"   # implementado em src/db500_reader.py
+    # opções específicas do parser (db500 multi-máquinas)
+    parser_opts:
+      machines: 5
+      sensors_per_machine: 5
+      machine_block_size: 66
+      sensor_block_size: 6
+    # tags adicionais fixas (opcional)
+    tags:
+      area: "linha1"
+    # fields adicionais ou overrides (opcional)
+    fields:
+      db: 500
+
+  - name: "balancas"
+    db_number: 200
+    db_size: 32   # ajuste conforme layout de balanças
+    measurement: "s7_db200"
+    parser: "db200_balancas"  # planejado/implantar conforme necessidade
+    tags:
+      area: "expedicao"
+    fields:
+      db: 200
+
+# Observações:
+# - Se o parser não for encontrado, o agente pode publicar payload bruto
+#   (bytes/hex) para posterior ingestão e parsing no backend.
+# - Os placeholders do tópico MQTT (${TENANT_ID}, ${PLC_ID}) podem ser
+#   resolvidos via variáveis de ambiente.
+# - Para executar em Docker Compose, veja `docker-compose.yml` e `infra/*`.

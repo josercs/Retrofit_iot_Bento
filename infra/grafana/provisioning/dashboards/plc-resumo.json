@@ -1,0 +1,88 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Última leitura PLC",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\")\n  |> filter(fn: (r) => r._field == \"contador_bom\")\n  |> last()",
+          "refId": "A",
+          "queryType": "flux"
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência de leitura (ms)",
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "plc_read_latency_ms",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Contador Bom",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 6},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\")\n  |> filter(fn: (r) => r._field == \"contador_bom\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> last()",
+          "refId": "A",
+          "queryType": "flux"
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+    },
+    {
+      "type": "stat",
+      "title": "Contador Ruim",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 6},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\")\n  |> filter(fn: (r) => r._field == \"contador_ruim\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> last()",
+          "refId": "A",
+          "queryType": "flux"
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Peças Boas/min (derivada)",
+      "gridPos": {"h": 9, "w": 16, "x": 0, "y": 13},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\")\n  |> filter(fn: (r) => r._field == \"contador_bom\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> derivative(unit: 1m, nonNegative: true)",
+          "refId": "A",
+          "queryType": "flux"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["PLC", "Resumo"],
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "PLC - Resumo (Flux)",
+  "uid": "plc-resumo-flux",
+  "version": 1
+}

@@ -1,26 +1,37 @@
 source:
-  ip: "192.168.0.121"
+  type: s7
+  host: 192.168.0.121
   rack: 0
   slot: 1
   db_number: 1
   db_size: 14
-  poll_interval: 1.0
+  ip: 192.168.0.121      # requerido pelo schema (source.ip)
 
 output:
-  mode: "mqtt"
+  mode: mqtt
   mqtt:
-    broker: "mosquitto"  # use '127.0.0.1' if running agent outside Docker
-    port: 8883
-    # MQTT topic can use env placeholders, e.g.: plc/${TENANT_ID}/${PLC_ID}
-    topic: "plc/${TENANT_ID}/${PLC_ID}"
-    qos: 0
-    retain: false
-    tls: true
-    ca_file: "/app/ca.crt"
-    tls_insecure: false
-    username: "edge_agent"
-    password: "EdgeAgent!2025"
+  broker: mqtt-broker
+  port: 8883
+  tls: true
+  ca_file: /app/ca.crt
+  tls_insecure: true
+  username: edge_agent
+  password: edge_agent
+  topic: plc/db1
+  qos: 1
+  retain: false
 
-metrics_port: 9108
-store_path: "queue.sqlite"
+identity:
+  tenant_id: linha1
+  plc_id: clp01
 
+dbs:
+  - name: "processo"
+    db_number: 1
+    db_size: 14
+    measurement: "s7_db1"
+    parser: "db500"
+    tags:
+      area: "linha1"
+    fields:
+      db: 1
