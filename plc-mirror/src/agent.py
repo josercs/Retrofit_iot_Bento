@@ -3,6 +3,7 @@ import yaml
 from typing import Dict
 from src.config_loader import load_config
 from src.db500_reader import read_values
+from src.parsers import get_reader
 from src.metrics import READ_OK, READ_FAIL, PUBLISH_OK, PUBLISH_FAIL, LAST_VALUE, BACKLOG, READ_LATENCY_MS, EDGE_UP, start_metrics_server, set_last_payload_provider
 from src.store import StoreForward
 from threading import Thread, Event
@@ -63,11 +64,22 @@ def publish_mqtt(cfg, payload: Dict):
         logging.info('MQTT publish topic resolved to: %s', topic)
     except Exception:
         pass
-    info = client.publish(topic, json.dumps(payload, ensure_ascii=False), qos=int(m.qos), retain=bool(m.retain))
+    # Publish on resolved topic and a secondary legacy topic to ease ingestion/debug
+    pay = json.dumps(payload, ensure_ascii=False)
+    q = max(0, min(1, int(m.qos)))
+    info = client.publish(topic, pay, qos=q, retain=bool(m.retain))
+    try:
+        client.publish("plc/db1", pay, qos=q, retain=False)
+    except Exception as e:
+        logging.warning('MQTT secondary publish (plc/db1) error: %r', e)
     try:
         info.wait_for_publish(timeout=2.0)
-    except Exception:
-        # Best-effort: give network loop a brief moment
+        if info.is_published():
+            logging.info('MQTT publish SUCCESS: topic=%s mid=%s', topic, info.mid)
+        else:
+            logging.error('MQTT publish TIMEOUT/FAIL: topic=%s mid=%s rc=%s', topic, info.mid, info.rc)
+    except Exception as e:
+        logging.error('MQTT publish EXCEPTION: topic=%s error=%r', topic, e)
         time.sleep(0.1)
     finally:
         client.loop_stop(); client.disconnect()
@@ -159,16 +171,66 @@ def main():
 
     Thread(target=forced_heartbeat_loop, daemon=True).start()
 
+    def _read_db(parser_name: str, ip: str, rack: int, slot: int, db_number: int, db_size: int):
+        """Despacha leitura para função baseada no nome do parser.
+        Se o parser não existir, cai em fallback de bytes brutos.
+        """
+        reader = get_reader(parser_name)
+        return reader(ip, rack, slot, db_number, db_size)
+
     def one_cycle():
         try:
             t0 = time.time()
-            # Try PLC read but don't kill the server if it fails; we'll record and retry.
-            vals = read_values(cfg.source.ip, cfg.source.rack, cfg.source.slot, cfg.source.db_number, cfg.source.db_size)
+            # Suporte multi-DB: se cfg.dbs existir, iterar; caso contrário, usar cfg.source
+            db_items = []
+            if getattr(cfg, 'dbs', None):
+                db_items = [
+                    {
+                        'name': it.name,
+                        'db_number': it.db_number,
+                        'db_size': it.db_size,
+                        'measurement': it.measurement or 's7_db',
+                        'parser': it.parser or 'db500',
+                        'tags': it.tags,
+                        'fields': it.fields,
+                    }
+                    for it in cfg.dbs or []
+                ]
+            else:
+                db_items = [{
+                    'name': 'default',
+                    'db_number': cfg.source.db_number,
+                    'db_size': cfg.source.db_size,
+                    'measurement': 's7_db',
+                    'parser': 'db500',
+                    'tags': {},
+                    'fields': {'db': cfg.source.db_number},
+                }]
+
+            all_payloads = []
+            for item in db_items:
+                # Try PLC read but don't kill the server if it fails; we'll record and retry.
+                # Read DB using configured parser (legacy single-DB behavior)
+                vals = _read_db(item['parser'], cfg.source.ip, cfg.source.rack, cfg.source.slot, item['db_number'], item['db_size'])
+                all_payloads.append({
+                    'ts': time.time(),
+                    'ip': cfg.source.ip,
+                    'db': item['db_number'],
+                    'tenant_id': cfg.tenant_id,
+                    'plc_id': cfg.plc_id,
+                    'measurement': item['measurement'],
+                    'name': item['name'],
+                    'tags': item['tags'],
+                    'fields': item['fields'],
+                    'values': vals,
+                })
             READ_LATENCY_MS.set((time.time()-t0)*1000.0)
             READ_OK.inc()
-            for k, v in vals.items():
-                if isinstance(v, (int, float)):
-                    LAST_VALUE.labels(k).set(float(v))
+            # Atualiza métricas de últimos valores do primeiro DB
+            if all_payloads:
+                for k, v in all_payloads[0]['values'].items():
+                    if isinstance(v, (int, float)):
+                        LAST_VALUE.labels(k).set(float(v))
         except Exception as e:
             READ_FAIL.inc()
             # Publish a heartbeat payload so downstream can see outage state
@@ -201,28 +263,22 @@ def main():
             logging.error('PLC READ ERROR: %r', e)
             time.sleep(1.0)
             return
-        payload = {
-            'ts': time.time(),
-            'ip': cfg.source.ip,
-            'db': cfg.source.db_number,
-            'tenant_id': cfg.tenant_id,
-            'plc_id': cfg.plc_id,
-            'values': vals,
-        }
-        last_payload.update(payload)
-        try:
-            if mode == 'stdout':
-                publish_stdout(payload)
-            elif mode == 'mqtt':
-                publish_mqtt(cfg, payload)
-            elif mode == 'http':
-                publish_http(cfg, payload)
-            PUBLISH_OK.labels(mode).inc()
-        except Exception as e:
-            PUBLISH_FAIL.labels(mode).inc(); store.enqueue(payload)
-            logging.error('PUBLISH ERROR (%s): %r', mode, e)
-            # Do not raise to avoid crash loop; backlog will flush later
-            return
+        # Publicar todos os payloads (um por DB)
+        for payload in all_payloads:
+            last_payload.update(payload)
+            try:
+                if mode == 'stdout':
+                    publish_stdout(payload)
+                elif mode == 'mqtt':
+                    publish_mqtt(cfg, payload)
+                elif mode == 'http':
+                    publish_http(cfg, payload)
+                PUBLISH_OK.labels(mode).inc()
+            except Exception as e:
+                PUBLISH_FAIL.labels(mode).inc(); store.enqueue(payload)
+                logging.error('PUBLISH ERROR (%s): %r', mode, e)
+                # Continue com os demais DBs
+                continue
 
         # Flush backlog
         batch = store.dequeue(200)

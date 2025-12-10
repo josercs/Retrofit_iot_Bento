@@ -1,4 +1,6 @@
-﻿# PLC Mirror & Edge Ingestion (python-snap7 + MQTT + Telegraf + InfluxDB + Grafana)
+﻿# Retrofit_iot_Bento
+
+# PLC Mirror & Edge Ingestion (python-snap7 + MQTT + Telegraf + InfluxDB + Grafana)
 
 ## 1. Visão Geral
 Projeto para ler dados de PLC Siemens (S7) via DB (ex.: DB500), publicar medições JSON multi-tenant em MQTT com TLS e ingestão por Telegraf para InfluxDB/Grafana. Inclui:
@@ -374,3 +376,6 @@ Documentação complementar:
 ---
 > Última atualização: Gerado automaticamente para descrever cada parte do projeto.
 > Versão estendida com detalhes operacionais, segurança e troubleshooting.
+
+## Licença
+Este projeto está licenciado sob a Licença MIT. Consulte o arquivo `LICENSE` na raiz do repositório para o texto completo da licença.

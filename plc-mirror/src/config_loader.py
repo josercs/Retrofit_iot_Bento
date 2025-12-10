@@ -1,5 +1,5 @@
 ﻿import os, yaml
-from typing import Optional, Literal, Dict, Any
+from typing import Optional, Literal, Dict, Any, List
 from pydantic import BaseModel, Field, ValidationError
 
 class SourceConfig(BaseModel):
@@ -9,6 +9,18 @@ class SourceConfig(BaseModel):
     db_number: int = 1
     db_size: int = 14
     poll_interval: float = 1.0
+
+class DBItem(BaseModel):
+    """Configuração de um bloco de dados adicional (multi-DB).
+    Compatível com exemplo: name/db_number/db_size/measurement/parser/tags/fields
+    """
+    name: str
+    db_number: int
+    db_size: int
+    measurement: Optional[str] = None
+    parser: Optional[str] = None
+    tags: Dict[str, Any] = Field(default_factory=dict)
+    fields: Dict[str, Any] = Field(default_factory=dict)
 
 class MQTTConfig(BaseModel):
     broker: str
@@ -42,6 +54,8 @@ class AppConfig(BaseModel):
     store_path: str = 'queue.sqlite'
     tenant_id: Optional[str] = None
     plc_id: Optional[str] = None
+    # Lista opcional de DBs adicionais; se ausente, o agente pode usar apenas 'source'
+    dbs: Optional[List[DBItem]] = None
 
 ENV_MAP = {
     ('source','ip'): 'PLC_IP',
@@ -127,6 +141,9 @@ def load_config(path: str) -> AppConfig:
     data = _merge_env(data)
     data = _normalize_mqtt_section(data)
     try:
-        return AppConfig(**data)
+        cfg = AppConfig(**data)
+        # Backward compat: se 'dbs' estiver vazio e existir source com db_number/db_size,
+        # o agente ainda pode operar no modo single-DB.
+        return cfg
     except ValidationError as e:
         raise RuntimeError(f'Invalid configuration: {e}')

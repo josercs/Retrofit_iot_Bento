@@ -97,6 +97,8 @@ Documentação complementar:
 * `docs/ANALISE_GAPS.md` – Prioridades de evolução
 * `OPERACOES.md` – Rotinas operacionais
 * `scripts/*.ps1` – Scripts para diagnóstico e tokens
+* `docs/CHECKLIST_EDGE_BOX.md` – Checklist marcável para entrega de Edge Box
+* `docs/DB500_LAYOUT.md` – Como configurar e ampliar DB500 multi‑máquinas
 
 ---
 > Última atualização: arquivo traduzido e alinhado ao conjunto de documentos em português.
