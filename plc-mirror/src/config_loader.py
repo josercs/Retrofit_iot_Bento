@@ -25,7 +25,7 @@ class DBItem(BaseModel):
 class MQTTConfig(BaseModel):
     broker: str
     port: int = 1883
-    topic: str = "plc/db500"
+    topic: str = "plc/db1"
     qos: int = 0
     retain: bool = False
     username: Optional[str] = None

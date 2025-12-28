@@ -15,7 +15,7 @@ groups:
             query: |
               from(bucket: "processo")
                 |> range(start: -5m)
-                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "AI_Vibracao")
+                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "contador_bom")
                 |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
           - refId: B
             queryType: math
@@ -42,7 +42,7 @@ groups:
             query: |
               from(bucket: "processo")
                 |> range(start: -5m)
-                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "AI_Corrente")
+                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "contador_bom")
                 |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
           - refId: B
             queryType: math
@@ -71,7 +71,7 @@ groups:
             query: |
               from(bucket: "processo")
                 |> range(start: -15m)
-                |> filter(fn: (r) => r._measurement == "oee" and r._field == "oee_pct")
+                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "contador_bom")
                 |> aggregateWindow(every: 5m, fn: last, createEmpty: false)
           - refId: B
             queryType: math
@@ -98,7 +98,7 @@ groups:
             query: |
               from(bucket: "processo")
                 |> range(start: -5m)
-                |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "edge_up")
+                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "contador_bom")
                 |> last()
           - refId: B
             queryType: math
@@ -126,7 +126,7 @@ groups:
               import "influxdata/influxdb/schema"
               from(bucket: "processo")
                 |> range(start: -2m)
-                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "heartbeat")
+                |> filter(fn: (r) => r._measurement == "s7_db1" and r._field == "contador_bom")
                 |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
                 |> last()
           - refId: B

@@ -1,71 +1,118 @@
 {
-  "uid": "debug-s7",
-  "title": "Debug s7_db1",
+  "uid": "debug-s7-profissional",
+  "title": "Debug PLC Profissional",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "10s",
-  "tags": ["debug", "edge"],
+  "tags": ["debug", "edge", "plc", "monitoring"],
   "templating": {
     "list": [
       {
         "name": "ip",
-        "label": "ip",
+        "label": "Endereço IP",
         "type": "query",
         "includeAll": true,
         "allValue": "",
         "query": "import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"ip\")",
-        "datasource": {"type": "influxdb", "uid": "influxdb"},
-        "refresh": 2
-      },
-      {
-        "name": "db",
-        "label": "db",
-        "type": "query",
-        "includeAll": true,
-        "allValue": "",
-        "query": "import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"db\")",
-        "datasource": {"type": "influxdb", "uid": "influxdb"},
-        "refresh": 2
+        "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+        "refresh": 2,
+        "multi": false,
+        "current": {"selected": true, "text": "Todos", "value": ""}
       }
     ]
   },
   "panels": [
     {
-      "type": "timeseries",
-      "title": "contador_bom (derivada/min)",
-      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
-      "datasource": {"type": "influxdb", "uid": "influxdb"},
-      "targets": [
-        {
-          "refId": "A",
-          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\" and (v.ip == \"\" or r.ip == v.ip) and (v.db == \"\" or string(v: r.db) == v.db))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: mean)"
-        }
-      ]
+      "type": "table",
+      "title": "📊 Resumo PLC Prometheus",
+      "description": "Tabela dos principais dados do PLC",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 12},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+           "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and (r.name == \"contador_bom\" or r.name == \"contador_ruim\" or r.name == \"maquina_ligada\" or r.name == \"AI_Corrente\" or r.name == \"AI_Vibracao\" or r.name == \"edge_up\")) |> pivot(rowKey:[\"_time\"], columnKey: [\"name\"], valueColumn: \"_value\") |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> keep(columns: [\"_time\", \"contador_bom\", \"contador_ruim\", \"maquina_ligada\", \"AI_Corrente\", \"AI_Vibracao\", \"edge_up\"]) |> sort(columns: [\"_time\"], desc: true) |> limit(n: 30)"
+    }]
+    },
+    {
+      "type": "stat",
+      "title": "🔌 Edge Status",
+      "gridPos": {"x": 0, "y": 12, "w": 3, "h": 3},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+        "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"edge_up\") |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> last()"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "🏭 Máquina",
+      "gridPos": {"x": 4, "y": 12, "w": 4, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+        "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"maquina_ligada\") |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> last()"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "📊 Qualidade",
+      "gridPos": {"x": 8, "y": 12, "w": 4, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+         "query": "from(bucket: \"processo\") |> range(start: -5m) |> filter(fn: (r) => r._measurement == \"prometheus\" and (r.name == \"contador_bom\" or r.name == \"contador_ruim\")) |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> last() |> pivot(rowKey:[\"_time\"], columnKey: [\"name\"], valueColumn: \"_value\") |> map(fn: (r) => ({ _value: if exists r.contador_bom and exists r.contador_ruim and (r.contador_bom + r.contador_ruim) > 0 then (float(v: r.contador_bom) / float(v: r.contador_bom + r.contador_ruim)) * 100.0 else 0.0 }))"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent"}}
+    },
+    {
+      "type": "stat",
+      "title": "🔢 Peças Boas",
+      "gridPos": {"x": 12, "y": 12, "w": 3, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+        "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"contador_bom\") |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> last()"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "⚠️ Peças Ruins",
+      "gridPos": {"x": 15, "y": 12, "w": 3, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+        "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"contador_ruim\") |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> last()"
+      }]
     },
     {
       "type": "timeseries",
-      "title": "Todos os campos s7_db1 (última hora)",
-      "description": "Painel bruto sem variáveis v.* para validar ingestão básica.",
-      "gridPos": {"x": 0, "y": 8, "w": 24, "h": 8},
-      "datasource": {"type": "influxdb", "uid": "influxdb"},
-      "targets": [
-        {
-          "refId": "RAW",
-          "query": "from(bucket: \"processo\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\")\n  |> keep(columns: [\"_time\", \"_field\", \"_value\", \"ip\", \"db\"])"
-        }
-      ]
+      "title": "📈 Produção",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+        "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and (r.name == \"contador_bom\" or r.name == \"contador_ruim\")) |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\")"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "⚡ Sensores",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+        "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and (r.name == \"AI_Corrente\" or r.name == \"AI_Vibracao\")) |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\")"
+      }]
     },
     {
       "type": "table",
-      "title": "Últimos pontos (10)",
-      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
-      "datasource": {"type": "influxdb", "uid": "influxdb"},
-      "targets": [
-        {
-          "refId": "B",
-          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and (v.ip == \"\" or r.ip == v.ip) and (v.db == \"\" or string(v: r.db) == v.db))\n  |> keep(columns: [\"_time\", \"_field\", \"_value\", \"ip\", \"db\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 10)"
-        }
-      ]
+      "title": "📋 Métricas Técnicas",
+      "gridPos": {"x": 18, "y": 12, "w": 6, "h": 12},
+      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
+      "targets": [{
+        "refId": "A",
+        "query": "from(bucket: \"processo\") |> range(start: -15m) |> filter(fn: (r) => r._measurement == \"prometheus\" and (r.name == \"plc_read_ok_total\" or r.name == \"plc_read_fail_total\" or r.name == \"plc_read_latency_ms\" or r.name == \"edge_backlog_size\")) |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> last() |> pivot(rowKey:[\"ip\"], columnKey: [\"name\"], valueColumn: \"_value\")"
+      }]
     }
   ]
 }

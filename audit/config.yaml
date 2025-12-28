@@ -1,0 +1,24 @@
+plc:
+  ip: 192.168.0.121
+  rack: 0
+  slot: 1
+  db_number: 1
+  db_size: 14
+
+mqtt:
+  broker: localhost
+  port: 1883
+  topic: plc/db1
+  timeout: 3
+
+influx:
+  url: http://localhost:8086
+  token: ZUq0XAIVQ6ZahGiuFXwbMKPl_A4MsJpeDum3wLMFbKIQA7hYZXtuHbw80HimJTvT3Gwg99cE2M7JmMV8OGHmuQ==
+  org: planta
+  bucket: processo
+
+grafana:
+  url: http://localhost:3000
+  username: admin
+  password: admin2
+  datasource: InfluxDB

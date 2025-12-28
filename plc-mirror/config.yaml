@@ -10,16 +10,19 @@ source:
 output:
   mode: mqtt
   mqtt:
-  broker: mqtt-broker
-  port: 8883
-  tls: true
-  ca_file: /app/ca.crt
-  tls_insecure: true
-  username: edge_agent
-  password: edge_agent
-  topic: plc/db1
-  qos: 1
-  retain: false
+    broker: localhost
+    port: 1883
+    # tls: Ativa criptografia TLS/SSL na conexão MQTT (true = seguro, false = sem criptografia)
+    tls: false
+    # ca_file: Caminho do certificado da CA para validar o broker (usado só se tls: true)
+    ca_file: null
+    # tls_insecure: Ignora validação do certificado TLS (true = ignora, false = valida, só se tls: true)
+    tls_insecure: false
+    username: edge_agent
+    password: edge_agent
+    topic: plc/db1
+    qos: 1
+    retain: false
 
 identity:
   tenant_id: linha1
@@ -30,8 +33,16 @@ dbs:
     db_number: 1
     db_size: 14
     measurement: "s7_db1"
-    parser: "db500"
+    parser: "db1"
     tags:
       area: "linha1"
     fields:
       db: 1
+
+influx:
+  url: http://localhost:8086
+grafana:
+  url: "http://localhost:3000"
+  username: "admin"
+  password: "admin"
+  datasource: "InfluxDB"

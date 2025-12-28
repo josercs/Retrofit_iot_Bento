@@ -4,6 +4,7 @@ Permite escolher parser por nome a partir da configuração.
 from typing import Callable, Dict
 
 from src.db500_reader import read_values as read_db500
+from src.db1_parser import read_values as read_db1
 
 def read_raw_bytes(ip: str, rack: int, slot: int, db_number: int, db_size: int):
     """Fallback: lê bytes do DB e retorna dict com hex/len.
@@ -24,8 +25,9 @@ def read_raw_bytes(ip: str, rack: int, slot: int, db_number: int, db_size: int):
 
 # Mapa de funções de leitura por nome de parser
 PARSERS: Dict[str, Callable[[str, int, int, int, int], dict]] = {
-    'db500': read_db500,
     'raw': read_raw_bytes,
+    'db500': read_db500,
+    'db1': read_db1,
     # 'db200_balancas': implementar conforme layout das balanças
 }
 

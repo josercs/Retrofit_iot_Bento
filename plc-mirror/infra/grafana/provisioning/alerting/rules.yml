@@ -61,7 +61,7 @@ groups:
               query: |
                 from(bucket: "processo")
                   |> range(start: -5m)
-                  |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "plc_read_latency_ms")
+                  |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "edge_up")
                   |> mean()
           - refId: C
             datasourceUid: __expr__
@@ -96,7 +96,7 @@ groups:
               query: |
                 from(bucket: "processo")
                   |> range(start: -2m)
-                  |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "plc_publish_fail_total")
+                  |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "edge_up")
                   |> derivative(nonNegative: true, unit: 1m)
                   |> sum()
           - refId: C

@@ -20,6 +20,36 @@
 				"$python"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Check Prometheus metrics",
+			"type": "shell",
+			"command": "curl http://localhost:9108/metrics"
+		},
+		{
+			"label": "Verificar logs do agente para publicação MQTT",
+			"type": "shell",
+			"command": "type logs\\collector.log | findstr /i mqtt"
+		},
+		{
+			"label": "Verificar logs do agente para publicação MQTT (stdout)",
+			"type": "shell",
+			"command": "type plc-mirror\\logs\\collector.log | findstr /i mqtt"
+		},
+		{
+			"label": "Verificar logs do agente para publicação MQTT (log alternativo)",
+			"type": "shell",
+			"command": "type plc-mirror\\logs\\collector.log"
+		},
+		{
+			"label": "Verificar métricas Prometheus diretamente",
+			"type": "shell",
+			"command": "curl http://localhost:9108/metrics"
+		},
+		{
+			"label": "Verificar logs de sucesso/falha MQTT",
+			"type": "shell",
+			"command": "type plc-mirror\\logs\\collector.log | findstr /i mqtt"
 		}
 	]
 }

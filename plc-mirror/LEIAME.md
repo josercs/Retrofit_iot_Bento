@@ -1,7 +1,7 @@
 # Plataforma Edge PLC (snap7 + MQTT + Telegraf + InfluxDB + Grafana)
 
 ## 1. Visão Geral
-Projeto para ler dados de PLC Siemens (S7) via DB (ex.: DB500), publicar medições JSON multi‑locatários em MQTT com TLS e ingestão por Telegraf para InfluxDB/Grafana. Inclui:
+Projeto para ler dados de PLC Siemens (S7) via DB (ex.: DB1), publicar medições JSON multi‑locatários em MQTT com TLS e ingestão por Telegraf para InfluxDB/Grafana. Inclui:
 * Agente Edge resiliente com store‑and‑forward, métricas Prometheus e heartbeat.
 * Pipeline multi‑locatários (tópico `plc/<locatario>/<plc>` com derivação de tags quando ausentes no payload).
 * Observabilidade (Prometheus -> Influx -> Grafana) e painel de depuração.
@@ -18,7 +18,7 @@ PLC (S7) --> Agente Edge (Python snap7) --> Broker MQTT (Mosquitto TLS) --> Tele
 | Componente | Função |
 |------------|--------|
 | `src/agent.py` | Leitura cíclica DB, publicação MQTT/HTTP/stdout, métricas, heartbeat e store‑forward |
-| `src/db500_reader.py` | Extração estruturada dos campos (bool/real/int) em DB fixo (layout 14 bytes) |
+| `src/db500_reader.py` | (Obsoleto) Extração estruturada dos campos em DB500. Para DB1, usar parser raw. |
 | `src/store.py` | Fila persistente SQLite para garantias em caso de falha temporária de rede |
 | `src/metrics.py` | Exposição de métricas Prometheus e mini dashboard HTML `/` e `/api/last` |
 | `infra/mosquitto/*` | Broker MQTT com TLS, ACLs e senhas (multi‑locatários por tópico) |
@@ -26,7 +26,7 @@ PLC (S7) --> Agente Edge (Python snap7) --> Broker MQTT (Mosquitto TLS) --> Tele
 | `infra/grafana/*` | Datasource e dashboards Flux provisionados |
 | `docker-compose.yml` | Orquestração dos serviços (edge, broker, telegraf, influx, grafana) |
 | `src/mirror.py` | Espelhamento bruto DB: lê bytes de um PLC e replica em outro PLC |
-| `src/exporter.py` | Versão simplificada de exportador de valores DB500 (modo legado) |
+| `src/exporter.py` | Versão simplificada de exportador de valores DB1 (modo legado) |
 | `src/config_loader.py` | Carregamento e normalização da configuração (YAML + env) |
 | `src/cfg_schema.py` | Modelos Pydantic auxiliares para schema |
 
@@ -98,7 +98,7 @@ Documentação complementar:
 * `OPERACOES.md` – Rotinas operacionais
 * `scripts/*.ps1` – Scripts para diagnóstico e tokens
 * `docs/CHECKLIST_EDGE_BOX.md` – Checklist marcável para entrega de Edge Box
-* `docs/DB500_LAYOUT.md` – Como configurar e ampliar DB500 multi‑máquinas
+* `docs/DB1_LAYOUT.md` – Como configurar e ampliar DB1 multi‑máquinas
 
 ---
 > Última atualização: arquivo traduzido e alinhado ao conjunto de documentos em português.

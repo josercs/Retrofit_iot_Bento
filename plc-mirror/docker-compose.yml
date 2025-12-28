@@ -17,6 +17,7 @@ services:
     # and expose the metrics port for Telegraf to scrape.
     ports:
       - "9108:9108"
+      
     networks:
       - edge
     depends_on:
@@ -38,6 +39,8 @@ services:
       - ./infra/mosquitto/certs:/mosquitto/certs
       - ./infra/mosquitto/auth:/mosquitto/auth
     ports:
+      - "8883:8883"
+      - "1883:1883"
       - "8883:8883"
     networks:
       - edge
