@@ -1,48 +1,26 @@
 source:
-  type: s7
-  host: 192.168.0.121
+  ip: "192.168.0.121"
   rack: 0
   slot: 1
   db_number: 1
   db_size: 14
-  ip: 192.168.0.121      # requerido pelo schema (source.ip)
+  poll_interval: 1.0
 
 output:
-  mode: mqtt
+  mode: "mqtt"
   mqtt:
-    broker: localhost
-    port: 1883
-    # tls: Ativa criptografia TLS/SSL na conexão MQTT (true = seguro, false = sem criptografia)
-    tls: false
-    # ca_file: Caminho do certificado da CA para validar o broker (usado só se tls: true)
-    ca_file: null
-    # tls_insecure: Ignora validação do certificado TLS (true = ignora, false = valida, só se tls: true)
-    tls_insecure: false
-    username: edge_agent
-    password: edge_agent
-    topic: plc/db1
-    qos: 1
+    broker: "mosquitto"  # use '127.0.0.1' if running agent outside Docker
+    port: 8883
+    # MQTT topic can use env placeholders, e.g.: plc/${TENANT_ID}/${PLC_ID}
+    topic: "plc/${TENANT_ID}/${PLC_ID}"
+    qos: 0
     retain: false
+    tls: true
+    ca_file: "/app/ca.crt"
+    tls_insecure: false
+    username: "edge_agent"
+    password: "EdgeAgent!2025"
 
-identity:
-  tenant_id: linha1
-  plc_id: clp01
+metrics_port: 9108
+store_path: "queue.sqlite"
 
-dbs:
-  - name: "processo"
-    db_number: 1
-    db_size: 14
-    measurement: "s7_db1"
-    parser: "db1"
-    tags:
-      area: "linha1"
-    fields:
-      db: 1
-
-influx:
-  url: http://localhost:8086
-grafana:
-  url: "http://localhost:3000"
-  username: "admin"
-  password: "admin"
-  datasource: "InfluxDB"

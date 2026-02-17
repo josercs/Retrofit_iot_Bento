@@ -11,7 +11,7 @@ import json, time
 import paho.mqtt.client as m
 payload = json.loads('''$payload''')
 c=m.Client(); c.username_pw_set('edge_agent','EdgeAgent!2025'); c.tls_set('/app/ca.crt'); c.connect('mosquitto',8883,60); c.loop_start();
-c.publish('plc/db1', json.dumps(payload), qos=0)
+c.publish('plc/db500', json.dumps(payload), qos=0)
 time.sleep(0.4); c.loop_stop(); c.disconnect()
 print('OK')
 PY

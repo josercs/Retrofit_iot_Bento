@@ -4,7 +4,7 @@ from typing import Optional
 class MQTTConfig(BaseModel):
     broker: str
     port: int = 1883
-    topic: str = "plc/db1"
+    topic: str = "plc/db500"
     qos: int = 0
     retain: bool = False
     username: Optional[str] = None

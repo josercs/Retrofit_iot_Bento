@@ -1,0 +1,71 @@
+{
+  "uid": "edge-health",
+  "title": "Edge Health",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["health", "edge"],
+  "templating": {
+    "list": [
+      {
+        "name": "plc_id",
+        "label": "PLC",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "influxdb"
+        },
+  "query": "import \"influxdata/influxdb/schema\"\nfrom(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\")\n  |> keep(columns: [\"plc_id\"])\n  |> unique(column: \"plc_id\")\n  |> sort(columns: [\"plc_id\"])",
+        "refresh": 1,
+        "hide": 0,
+        "multi": true,
+        "includeAll": true,
+        "allValue": "",
+        "current": {"text": "All", "value": ""}
+      }
+    ]
+  },
+  "panels": [
+    {"type":"stat","title":"Leituras OK/min","gridPos":{"x":0,"y":0,"w":8,"h":4},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+  "targets":[{"query":"from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"plc_read_ok_total\" and (v.plc_id == \"\" or exists r.plc_id == false or r.plc_id == v.plc_id))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)\n  |> last()"}]
+    },
+    {"type":"stat","title":"Publicações Falhas/min","gridPos":{"x":8,"y":0,"w":8,"h":4},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+      "targets":[{"query":"from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"plc_read_fail_total\" and (v.plc_id == \"\" or r.plc_id == v.plc_id))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)\n  |> last()"}]
+    },
+    {"type":"stat","title":"Peças/min","gridPos":{"x":16,"y":0,"w":8,"h":4},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+  "targets":[{"refId":"A","query":"from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\" and (v.plc_id == \"\" or exists r.plc_id == false or r.plc_id == v.plc_id))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: mean)\n  |> last()"}],
+      "options":{"reduceOptions":{"calcs":["lastNotNull"]}}
+    },
+    {"type":"timeseries","title":"Leituras OK e Falhas","gridPos":{"x":0,"y":4,"w":16,"h":8},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+      "targets":[
+  {"refId":"A","query":"from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and (r._field == \"plc_read_ok_total\" or r._field == \"plc_read_fail_total\") and (v.plc_id == \"\" or exists r.plc_id == false or r.plc_id == v.plc_id))\n  |> derivative(unit: 1m, nonNegative: true)"}
+      ]
+    },
+    {"type":"stat","title":"MQTT conectado","gridPos":{"x":16,"y":4,"w":8,"h":4},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+  "targets":[{"query":"from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"edge_up\" and (v.plc_id == \"\" or exists r.plc_id == false or r.plc_id == v.plc_id))\n  |> last()"}],
+      "options":{"reduceOptions":{"calcs":["lastNotNull"]}}
+    },
+    {"type":"timeseries","title":"Corrente e Vibração","gridPos":{"x":0,"y":12,"w":12,"h":8},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+      "targets":[
+  {"refId":"A","query":"from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and (r._field == \"AI_Corrente\" or r._field == \"AI_Vibracao\") and (v.plc_id == \"\" or exists r.plc_id == false or r.plc_id == v.plc_id))"}
+      ]
+    },
+    {"type":"stat","title":"Máquina Ligada","gridPos":{"x":12,"y":12,"w":4,"h":4},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+  "targets":[{"query":"from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"maquina_ligada\" and (v.plc_id == \"\" or exists r.plc_id == false or r.plc_id == v.plc_id))\n  |> last()"}],
+      "options":{"reduceOptions":{"calcs":["lastNotNull"]}}
+    },
+    {"type":"stat","title":"Qualidade %","gridPos":{"x":16,"y":12,"w":4,"h":4},
+      "datasource":{"type":"influxdb","uid":"influxdb"},
+      "targets":[{"refId":"A","query":"import \"influxdata/influxdb/schema\"\n\nq = from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and (r._field == \"contador_bom\" or r._field == \"contador_ruim\") and (v.plc_id == \"\" or r.plc_id == v.plc_id))\n  |> last()\n\nqBom = q |> filter(fn: (r) => r._field == \"contador_bom\")\nqRuim = q |> filter(fn: (r) => r._field == \"contador_ruim\")\n\njoin(tables: {bom: qBom, ruim: qRuim}, on: [\"_time\", \"host\", \"ip\", \"db\", \"topic\"], method: \"inner\")\n  |> map(fn: (r) => ({ r with _value: if exists r._value_bom and exists r._value_ruim and (r._value_bom + r._value_ruim) > 0 then float(v: r._value_bom) / float(v: r._value_bom + r._value_ruim) * 100.0 else 0.0 }))"}],
+      "options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":{"calcs":["lastNotNull"]}}}
+    }
+  ]
+}

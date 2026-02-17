@@ -1,9 +1,7 @@
-﻿# Retrofit_iot_Bento
-
-# PLC Mirror & Edge Ingestion (python-snap7 + MQTT + Telegraf + InfluxDB + Grafana)
+﻿# PLC Mirror & Edge Ingestion (python-snap7 + MQTT + Telegraf + InfluxDB + Grafana)
 
 ## 1. Visão Geral
-Projeto para ler dados de PLC Siemens (S7) via DB (ex.: DB1), publicar medições JSON multi-tenant em MQTT com TLS e ingestão por Telegraf para InfluxDB/Grafana. Inclui:
+Projeto para ler dados de PLC Siemens (S7) via DB (ex.: DB500), publicar medições JSON multi-tenant em MQTT com TLS e ingestão por Telegraf para InfluxDB/Grafana. Inclui:
 * Agente Edge resiliente com store-and-forward, métricas Prometheus e heartbeat.
 * Pipeline multi-tenant (tópico `plc/<tenant>/<plc>` com derivação de tags quando ausentes no payload).
 * Observabilidade (Prometheus -> Influx -> Grafana) e painel de depuração.
@@ -20,7 +18,7 @@ PLC (S7) --> Edge Agent (Python snap7) --> MQTT Broker (Mosquitto TLS) --> Teleg
 | Componente | Função |
 |------------|--------|
 | `src/agent.py` | Leitura cíclica DB, publicação MQTT/HTTP/stdout, métricas, heartbeat e store-forward |
-| `src/db500_reader.py` | (Obsoleto) Extração estruturada dos campos em DB500. Para DB1, usar parser raw. |
+| `src/db500_reader.py` | Extração estruturada dos campos (bool/real/int) em DB fixo (layout 14 bytes) |
 | `src/store.py` | Fila persistente SQLite para garantias em caso de falha temporária de rede |
 | `src/metrics.py` | Exposição de métricas Prometheus e mini dashboard HTML `/` e `/api/last` |
 | `infra/mosquitto/*` | Broker MQTT com TLS, ACLs e senhas (multi-tenant por tópico) |
@@ -28,7 +26,7 @@ PLC (S7) --> Edge Agent (Python snap7) --> MQTT Broker (Mosquitto TLS) --> Teleg
 | `infra/grafana/*` | Datasource e dashboards Flux provisionados |
 | `docker-compose.yml` | Orquestração dos serviços (edge, broker, telegraf, influx, grafana) |
 | `src/mirror.py` | Mirror bruto DB: lê bytes de um PLC e replica em outro PLC |
-| `src/exporter.py` | Versão simplificada de exportador de valores DB1 (modo legado) |
+| `src/exporter.py` | Versão simplificada de exportador de valores DB500 (modo legado) |
 | `src/config_loader.py` | Carregamento e normalização da configuração (YAML + env) |
 | `src/cfg_schema.py` | Modelos Pydantic auxiliares para schema |
 
@@ -112,28 +110,11 @@ queue.sqlite      Fila store-forward
 ### `src/agent.py`
 Loop principal: lê DB via `read_values`, constrói payload, publica MQTT (resolvendo placeholders `${TENANT_ID}`/`${PLC_ID}`), expõe métricas, heartbeat a cada 30s, faz flush da fila (`StoreForward`). Inclui fallback para publicar heartbeat em falha de leitura.
 
-### `src/db500_reader.py` (obsoleto para DB1)
+### `src/db500_reader.py`
 Define layout fixo (bools, floats, ints) e extrai valores de bytes crus do DB; conexão curta (abre, lê, fecha) para reduzir impacto.
 
 ### `src/store.py`
 Implementa tabela SQLite `events(id, ts, payload)` com métodos `enqueue`, `dequeue`, `delete_ids`, `count` — garante durabilidade em falhas de rede/MQTT.
-### `src/audit.py`
-Módulo oficial de auditoria automatizada. Permite rodar testes CLP→MQTT→InfluxDB→Grafana e obter relatório integrado.
-
-Exemplo de uso:
-```python
-from src.audit import audit_all
-report = audit_all()  # ou audit_all('audit/config.yaml')
-for item, status in report.items():
-	print(f"{item}: {status}")
-```
-
-Para rodar manualmente:
-```shell
-python src/audit.py
-```
-
-Configuração em `audit/config.yaml`.
 
 ### `src/metrics.py`
 Registra métricas (Counters/ Gauges) e fornece servidor HTTP simples com `/metrics` (Prometheus) e dashboard HTML para inspeção rápida.
@@ -393,88 +374,3 @@ Documentação complementar:
 ---
 > Última atualização: Gerado automaticamente para descrever cada parte do projeto.
 > Versão estendida com detalhes operacionais, segurança e troubleshooting.
-
-## Licença
-Este projeto está licenciado sob a Licença MIT. Consulte o arquivo `LICENSE` na raiz do repositório para o texto completo da licença.
-
----
-
-## Como usar o Auditor Retrofit IoT Bento
-
-### 1. Instalação das dependências
-
-Entre na pasta `audit` e instale as dependências:
-
-```powershell
-cd audit
-pip install -r requirements.txt
-```
-
-### 2. Configuração
-
-Edite o arquivo `audit/config.yaml` conforme seu ambiente:
-
-```yaml
-plc:
-	ip: "192.168.0.121"
-	rack: 0
-	slot: 1
-	db_number: 1
-	db_size: 64
-mqtt:
-	broker: "127.0.0.1"
-	port: 1883
-	topic: "plc/test/#"
-	timeout: 5
-influx:
-	url: "http://localhost:8086"
-	token: "seu_token"
-	org: "default"
-	bucket: "industrial"
-grafana:
-	url: "http://localhost:3000"
-	api_key: "sua_api_key"
-	datasource: "InfluxDB"
-```
-
-### 3. Execução via script
-
-Para rodar a auditoria manualmente:
-
-```powershell
-python audit/audit.py
-```
-
-Você verá um relatório no terminal, por exemplo:
-
-```
-PLC: OK: DB lido com sucesso
-MQTT: OK: Recebido JSON válido
-InfluxDB: OK: Dados presentes no bucket
-Grafana: OK: Datasource encontrado
-```
-
-### 4. Uso como módulo Python
-
-Você pode integrar o auditor em outros scripts do projeto:
-
-```python
-from src.audit import audit_all
-report = audit_all('audit/config.yaml')
-for item, status in report.items():
-		print(f"{item}: {status}")
-```
-
-### 5. Testes automatizados
-
-Execute os testes para validar integração:
-
-```powershell
-pytest tests/test_audit.py
-```
-
-### 6. Personalização
-
-Altere o arquivo de configuração para adaptar IPs, tokens, tópicos e parâmetros conforme seu ambiente.
-
----

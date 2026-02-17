@@ -34,9 +34,3 @@ queue.sqlite
 *.tmp
 *.swp
 *.swo
-
-# Env & secrets
-.env
-.env.*
-infra/mosquitto/certs/
-infra/mosquitto/auth/passwordfile

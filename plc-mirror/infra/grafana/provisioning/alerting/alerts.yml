@@ -19,7 +19,7 @@ groups:
               query: |
                 from(bucket: "processo")
                   |> range(start: -5m)
-                  |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "edge_up")
+                  |> filter(fn: (r) => r._measurement == "edge_up")
                   |> filter(fn: (r) => r._field == "gauge")
                   |> last()
                   |> map(fn: (r) => ({ r with _value: if exists r._value then r._value else 0.0 }))
@@ -45,7 +45,7 @@ groups:
               query: |
                 from(bucket: "processo")
                   |> range(start: -10m)
-                  |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "edge_up")
+                  |> filter(fn: (r) => r._measurement == "plc_read_latency_ms")
                   |> filter(fn: (r) => r._field == "gauge")
                   |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
                   |> last()
@@ -70,7 +70,7 @@ groups:
               query: |
                 from(bucket: "processo")
                   |> range(start: -10m)
-                  |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "edge_up")
+                  |> filter(fn: (r) => r._measurement == "plc_publish_fail_total")
                   |> filter(fn: (r) => r._field == "counter")
                   |> derivative(unit: 1m, nonNegative: true)
                   |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)

@@ -21,7 +21,7 @@ if (-not $token) { throw "INFLUX_TOKEN não encontrado no .env" }
 
 # Write a minimal point so tagValues picks up ip/db
 $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$line = "s7_db1,ip=$Ip,db=$Db seed=1i $($ts*1000000000)"
+$line = "s7_db500,ip=$Ip,db=$Db seed=1i $($ts*1000000000)"
 
 $headers = @{ Authorization = "Token $token" }
 $writeUri = "$HostUrl/api/v2/write?org=$OrgName&bucket=$BucketName&precision=ns"

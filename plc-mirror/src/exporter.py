@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from typing import Dict
 
-from src.db500_reader import read_values  # DB1 não usa parser estruturado, manter import para compatibilidade
+from src.db500_reader import read_values
 
 try:
     import paho.mqtt.client as mqtt
@@ -24,7 +24,7 @@ def publish_mqtt(cfg: Dict, payload: Dict):
     if mqtt is None:
         raise RuntimeError("paho-mqtt not installed")
     b = cfg["output"]["mqtt"]["broker"]
-    topic = cfg["output"]["mqtt"].get("topic", "plc/db1")
+    topic = cfg["output"]["mqtt"].get("topic", "plc/db500")
     qos = int(cfg["output"]["mqtt"].get("qos", 0))
     retain = bool(cfg["output"]["mqtt"].get("retain", False))
     client = mqtt.Client()
@@ -47,7 +47,7 @@ def publish_http(cfg: Dict, payload: Dict):
 
 def main():
     import argparse
-    p = argparse.ArgumentParser(description="Read DB1 fields and publish to MQTT/HTTP/stdout")
+    p = argparse.ArgumentParser(description="Read DB500 fields and publish to MQTT/HTTP/stdout")
     p.add_argument("--config", default="config.yaml")
     p.add_argument("--mode", choices=["stdout","mqtt","http"], help="Override output mode")
     p.add_argument("--once", action="store_true", help="Run once and exit")

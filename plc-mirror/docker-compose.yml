@@ -13,15 +13,14 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./infra/mosquitto/certs/ca.crt:/app/ca.crt:ro
-    # On Windows Docker Desktop, host network mode is unsupported; use default bridge network
-    # and expose the metrics port for Telegraf to scrape.
-    ports:
-      - "9108:9108"
-      
     networks:
-      - edge
+      edge:
+        aliases:
+          - collector
     depends_on:
       - mosquitto
+    ports:
+      - "9108:9108"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:9108/metrics', timeout=3)"]
       interval: 15s
@@ -39,8 +38,6 @@ services:
       - ./infra/mosquitto/certs:/mosquitto/certs
       - ./infra/mosquitto/auth:/mosquitto/auth
     ports:
-      - "8883:8883"
-      - "1883:1883"
       - "8883:8883"
     networks:
       - edge
@@ -78,9 +75,8 @@ services:
       - ./infra/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - ./infra/mosquitto/certs:/etc/telegraf/certs:ro
     environment:
-      # Token de escrita para Telegraf (deve ter permissão de write no bucket 'processo' da org 'planta')
       INFLUX_TOKEN: ${INFLUX_TOKEN}
-      TELEGRAF_MQTT_PASSWORD: NOVA_SENHA
+      TELEGRAF_MQTT_PASSWORD: EdgeAgent!2025
     networks:
       - edge
     depends_on:
@@ -98,8 +94,7 @@ services:
     depends_on:
       - influxdb
     environment:
-      # Use um token de leitura para Grafana; pode ser igual ao INFLUX_TOKEN, mas recomenda-se um READ token separado
-      - GRAFANA_INFLUX_TOKEN=${GRAFANA_INFLUX_TOKEN:-${INFLUX_TOKEN}}
+      - GRAFANA_INFLUX_TOKEN=${INFLUX_TOKEN}
       - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
       - GF_SERVER_HTTP_ADDR=0.0.0.0
