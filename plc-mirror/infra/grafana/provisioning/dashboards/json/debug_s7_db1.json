@@ -36,12 +36,14 @@
     {
       "type": "stat",
       "title": "🔌 Edge Status",
-      "gridPos": {"x": 0, "y": 12, "w": 3, "h": 3},
-      "datasource": {"type": "influxdb", "uid": "R951FEA4DE68E13C5"},
-      "targets": [{
+      "gridPos": { "x": 0, "y": 12, "w": 3, "h": 3 },
+      "datasource": { "type": "influxdb", "uid": "R951FEA4DE68E13C5" },
+      "targets": [
+      {
         "refId": "A",
-        "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"edge_up\") |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> last()"
-      }]
+        "query": "from(bucket: \"processo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"edge_up\") |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\") |> last()"
+      }
+      ]
     },
     {
       "type": "stat",

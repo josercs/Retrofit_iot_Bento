@@ -53,6 +53,6 @@ def read_values(ip: str, rack: int, slot: int, db_number: int, db_size: int):
     try:
         vals['contador_ruim'] = int(get_int(raw, 12))
     except Exception:
-        vals['contador_ruim'] = None        
+        vals['contador_ruim'] = None
 
     return vals

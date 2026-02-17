@@ -1,0 +1,37 @@
+source:
+  type: s7
+  host: 192.168.0.121
+  rack: 0
+  slot: 1
+  db_number: 1
+  db_size: 14
+  ip: 192.168.0.121      # requerido pelo schema (source.ip)
+
+output:
+  mode: mqtt
+  mqtt:
+  broker: mqtt-broker
+  port: 8883
+  tls: true
+  ca_file: /app/ca.crt
+  tls_insecure: true
+  username: edge_agent
+  password: edge_agent
+  topic: plc/db1
+  qos: 1
+  retain: false
+
+identity:
+  tenant_id: linha1
+  plc_id: clp01
+
+dbs:
+  - name: "processo"
+    db_number: 1
+    db_size: 14
+    measurement: "s7_db1"
+    parser: "db500"
+    tags:
+      area: "linha1"
+    fields:
+      db: 1

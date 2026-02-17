@@ -1,0 +1,355 @@
+{
+  "title": "PLC - Resumo (Flux)",
+  "uid": "plc-resumo-flux",
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "title": "Última Leitura",
+      "type": "table",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsLocal",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"prometheus\")\n  |> filter(fn: (r) => r.name == \"contador_bom\")\n  |> last()\n  |> keep(columns: [\"_time\"])\n  |> rename(columns: { _time: \"Data e Hora\" })",
+          "queryType": "flux",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "title": "OEE (Eficiência Global)",
+      "type": "stat",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "query": "// OEE (versão padronizada)\ngood = from(bucket: \"processo\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"contador_bom\")\n  |> difference()\n  |> sum(column: \"_value\")\n  |> set(key: \"tipo\", value: \"good\")\nbad = from(bucket: \"processo\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"contador_ruim\")\n  |> difference()\n  |> sum(column: \"_value\")\n  |> set(key: \"tipo\", value: \"bad\")\nunion(tables: [good, bad])\n  |> reduce(fn: (r, accumulator) => ({\n    good: if r.tipo == \"good\" then r._value else accumulator.good,\n    bad: if r.tipo == \"bad\" then r._value else accumulator.bad\n  }), identity: {good: 0.0, bad: 0.0})\n  |> map(fn: (r) => ({ r with OEE: if (r.good + r.bad) > 0.0 then (r.good / (r.good + r.bad)) * 100.0 else 0.0 }))\n  |> keep(columns: [\"OEE\"])\n  |> yield(name: \"OEE\")",
+          "queryType": "flux",
+          "refId": "OEE"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      }
+    },
+    {
+      "title": "Heartbeat",
+      "type": "stat",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "query": "// Heartbeat: segundos desde o último contador bom\nfrom(bucket: \"processo\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"contador_bom\")\n  |> last()\n  |> map(fn: (r) => ({ _value: float(v: now() - r._time) / 1000000000.0 }))",
+          "queryType": "flux",
+          "refId": "HEART"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "title": "Stale Data (Dado Desatualizado)",
+      "type": "stat",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [
+            {
+              "type": 1,
+              "options": {
+                "match": "true",
+                "result": {
+                  "text": "Desatualizado",
+                  "color": "red"
+                }
+              }
+            },
+            {
+              "type": 1,
+              "options": {
+                "match": "false",
+                "result": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "query": "// Stale Data: true se o último contador bom tem mais de 60s\nfrom(bucket: \"processo\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == \"contador_bom\")\n  |> last()\n  |> map(fn: (r) => ({ _value: (uint(v: now()) - uint(v: r._time)) > 60000000000 }))",
+          "queryType": "flux",
+          "refId": "STALE"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      }
+    },
+    {
+      "title": "Peças boas",
+      "type": "stat",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 5000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\")\n  |> filter(fn: (r) => r.name == \"contador_bom\")\n  |> last()",
+          "queryType": "flux",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      }
+    },
+    {
+      "title": "Contador Ruim",
+      "type": "stat",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\")\n  |> filter(fn: (r) => r.name == \"contador_ruim\")\n  |> last()",
+          "queryType": "flux",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      }
+    }
+  ]
+}

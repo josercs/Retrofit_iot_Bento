@@ -1,0 +1,163 @@
+{
+  "uid": "unificado-ot",
+  "title": "Dashboard Unificado OT",
+  "tags": [
+    "iot",
+    "edge",
+    "unificado",
+    "produto"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Edge UP",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: 'processo')\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == 'prometheus' and r._field == 'edge_up')\n  |> filter(fn: (r) => (r.ip == '${ip}' or '${ip}' == ''))\n  |> last()"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Heartbeat (s)",
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: 'processo')\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == 'prometheus' and r._field == 'edge_up')\n  |> filter(fn: (r) => (r.ip == '${ip}' or '${ip}' == ''))\n  |> last()\n  |> map(fn: (r) => ({ _value: float(v: now() - r._time) / 1000000000.0 }))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Stale Data",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: 'processo')\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == 'prometheus' and r._field == 'edge_up')\n  |> filter(fn: (r) => (r.ip == '${ip}' or '${ip}' == ''))\n  |> last()\n  |> map(fn: (r) => ({ _value: (uint(v: now()) - uint(v: r._time)) > 60000000000 }))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Produção (Peças Boas/min)",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: 'processo')\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == 's7_db1' and r._field == 'contador_bom')\n  |> filter(fn: (r) => (r.ip == '${ip}' or '${ip}' == '') and (r.db == '${db}' or '${db}' == ''))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)\n  |> last()"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Produção (Peças Ruins/min)",
+      "gridPos": {
+        "x": 4,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: 'processo')\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == 's7_db1' and r._field == 'contador_ruim')\n  |> filter(fn: (r) => (r.ip == '${ip}' or '${ip}' == '') and (r.db == '${db}' or '${db}' == ''))\n  |> derivative(unit: 1m, nonNegative: true)\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)\n  |> last()"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Qualidade (%)",
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "import 'math'\nprod = from(bucket: 'processo')\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == 's7_db1' and (r._field == 'contador_bom' or r._field == 'contador_ruim'))\n  |> filter(fn: (r) => (r.ip == '${ip}' or '${ip}' == '') and (r.db == '${db}' or '${db}' == ''))\n  |> pivot(rowKey:['_time'], columnKey: ['_field'], valueColumn: '_value')\n  |> map(fn: (r) => ({ _time: r._time, qualidade: if exists r.contador_bom and exists r.contador_ruim and (r.contador_bom + r.contador_ruim) > 0 then float(v: r.contador_bom) / float(v: r.contador_bom + r.contador_ruim) * 100.0 else 0.0 }))\n  |> last()\nprod"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ip",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "R951FEA4DE68E13C5"
+        },
+        "query": "import 'influxdata/influxdb/v1'\nv1.tagValues(bucket: 'processo', tag: 'ip')",
+        "includeAll": true,
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": ""
+        }
+      },
+      {
+        "name": "db",
+        "type": "query",
+        "datasource": "InfluxDB",
+        "query": "import 'influxdata/influxdb/v1'\nv1.tagValues(bucket: 'processo', tag: 'db')",
+        "includeAll": true,
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": ""
+        }
+      }
+    ]
+  }
+}

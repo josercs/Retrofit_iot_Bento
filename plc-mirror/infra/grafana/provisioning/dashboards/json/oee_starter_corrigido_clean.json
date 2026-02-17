@@ -1,0 +1,368 @@
+{
+  "uid": "oee-starter-simples",
+  "title": "OEE Starter (Simplificado)",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "30s",
+  "tags": ["oee", "edge", "simples"],
+  "templating": {
+    "list": [
+      {
+        "name": "ip",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "R951FEA4DE68E13C5"
+        },
+        "query": "import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"ip\")",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": ""
+        }
+      },
+      {
+        "name": "planned_rate_h",
+  "label": "Taxa nominal (pcs/h)",
+        "type": "custom",
+  "query": "5,10,15,20,25,30,35,40,45,50,55,60,70,80,90,100,120",
+        "current": {
+          "selected": true,
+          "text": "60",
+          "value": "60"
+        }
+      },
+      {
+        "name": "pulses_per_piece",
+        "label": "Escala do contador (pulsos/peça)",
+        "type": "custom",
+        "query": "1,2,5,10",
+        "current": {
+          "selected": true,
+          "text": "1",
+          "value": "1"
+        }
+      },
+      {
+        "name": "shift_mode",
+        "label": "Modo de período",
+        "type": "custom",
+        "query": "Timepicker,Turno",
+        "current": {
+          "selected": true,
+          "text": "Timepicker",
+          "value": "Timepicker"
+        }
+      },
+      {
+        "name": "shift",
+        "label": "Turno",
+        "type": "custom",
+        "query": "1,2,3",
+        "current": {
+          "selected": true,
+          "text": "1",
+          "value": "1"
+        }
+      },
+      {
+        "name": "shift1_start",
+        "label": "Turno 1 início (HH:MM)",
+        "type": "custom",
+        "query": "06:00",
+        "current": { "selected": true, "text": "06:00", "value": "06:00" }
+      },
+      {
+        "name": "shift1_end",
+        "label": "Turno 1 fim (HH:MM)",
+        "type": "custom",
+        "query": "14:00",
+        "current": { "selected": true, "text": "14:00", "value": "14:00" }
+      },
+      {
+        "name": "shift2_start",
+        "label": "Turno 2 início (HH:MM)",
+        "type": "custom",
+        "query": "14:00",
+        "current": { "selected": true, "text": "14:00", "value": "14:00" }
+      },
+      {
+        "name": "shift2_end",
+        "label": "Turno 2 fim (HH:MM)",
+        "type": "custom",
+        "query": "22:00",
+        "current": { "selected": true, "text": "22:00", "value": "22:00" }
+      },
+      {
+        "name": "shift3_start",
+        "label": "Turno 3 início (HH:MM)",
+        "type": "custom",
+        "query": "22:00",
+        "current": { "selected": true, "text": "22:00", "value": "22:00" }
+      },
+      {
+        "name": "shift3_end",
+        "label": "Turno 3 fim (HH:MM)",
+        "type": "custom",
+        "query": "06:00",
+        "current": { "selected": true, "text": "06:00", "value": "06:00" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Disponibilidade (%)",
+      "description": "Percentual do tempo em que a máquina permaneceu ligada no período",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field)\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\nget(metric: \"maquina_ligada\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> mean()\n  |> map(fn: (r) => ({ r with _value: r._value * 100.0 }))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Taxa efetiva (pcs/min)",
+      "description": "Taxa efetiva do último minuto (pcs/min), incluindo micro-paradas (zera se não há produção).",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 6
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "// pcs/min real via delta por janela de 1 minuto (mais estável que derivative quando a amostragem é irregular)\n// Compat: aceitamos schema novo (prometheus/name) e antigo (s7_db1/_field).\n// Entrada do operador: pcs/h. Conversão central: nominal_min = nominal_h/60.\nnominal_h = float(v: ${planned_rate_h:raw})\nnominal_min = nominal_h / 60.0\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\nmax_per_min = if nominal_min > 0.0 then (nominal_min * 3.0) else 500.0\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\ngood = get(metric: \"contador_bom\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nbad = get(metric: \"contador_ruim\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nunion(tables: [good, bad])\n  |> group(columns: [\"_time\"])\n  |> sum()\n  |> group()\n  |> filter(fn: (r) => r._value >= 0.0 and r._value < max_per_min)\n  |> fill(column: \"_value\", value: 0.0)\n  |> last()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1
+        }
+      }
+    },
+    {
+      "type": "stat",
+  "title": "Produção instantânea (pcs/h)",
+      "description": "Produção efetiva (último minuto) convertida para pcs/h; inclui micro-paradas (zera se não há produção).",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 6 },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "// pcs/h real (último minuto): calcula pcs/min (delta) e converte para pcs/h (x60)\n// Compat: aceitamos schema novo (prometheus/name) e antigo (s7_db1/_field).\n// Entrada do operador: pcs/h. Conversão central: nominal_min = nominal_h/60.\nnominal_h = float(v: ${planned_rate_h:raw})\nnominal_min = nominal_h / 60.0\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\nmax_per_min = if nominal_min > 0.0 then (nominal_min * 3.0) else 500.0\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\ngood = get(metric: \"contador_bom\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nbad = get(metric: \"contador_ruim\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nunion(tables: [good, bad])\n  |> group(columns: [\"_time\"])\n  |> sum()\n  |> group()\n  |> filter(fn: (r) => r._value >= 0.0 and r._value < max_per_min)\n  |> fill(column: \"_value\", value: 0.0)\n  |> map(fn: (r) => ({ r with _value: r._value * 60.0 }))\n  |> last()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Performance (% nominal)",
+      "description": "Performance real do último minuto = taxa efetiva (pcs/min) ÷ taxa nominal (pcs/min). Cai quando há micro-parada.",
+      "gridPos": { "x": 18, "y": 6, "w": 6, "h": 6 },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\n// Entrada do operador: pcs/h. Conversão central: nominal_min = nominal_h/60.\nnominal_h = float(v: ${planned_rate_h:raw})\nnominal_min = nominal_h / 60.0\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\nmax_per_min = if nominal_min > 0.0 then (nominal_min * 3.0) else 500.0\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\n// Taxa efetiva (último minuto) em pcs/min (TOTAL = boas + ruins), incluindo micro-paradas\ngood = get(metric: \"contador_bom\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nbad = get(metric: \"contador_ruim\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nunion(tables: [good, bad])\n  |> sum()\n  |> filter(fn: (r) => r._value >= 0.0 and r._value < max_per_min)\n  |> fill(column: \"_value\", value: 0.0)\n  |> map(fn: (r) => ({ r with _value: if nominal_min > 0.0 then (r._value / nominal_min) * 100.0 else 0.0 }))\n  |> map(fn: (r) => ({ r with _value: if r._value < 0.0 then 0.0 else if r._value > 200.0 then 200.0 else r._value }))\n  |> last()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        }
+      }
+    },
+
+    {
+      "type": "stat",
+      "title": "Performance média (% nominal)",
+      "description": "Performance real no período = produção no período ÷ (taxa nominal × duração do período). Inclui micro-paradas.",
+      "gridPos": { "x": 6, "y": 23, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "R951FEA4DE68E13C5" },
+      "targets": [
+        {
+  "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\n// Entrada do operador: pcs/h. Conversão central: nominal_min = nominal_h/60.\nnominal_h = float(v: ${planned_rate_h:raw})\nnominal_min = nominal_h / 60.0\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\n// Produção no período (boas + ruins), robusta a reset\nprod_good = get(metric: \"contador_bom\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nprod_bad = get(metric: \"contador_ruim\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nproduced = union(tables: [prod_good, prod_bad])\n  |> sum()\n  |> map(fn: (r) => ({ kind: \"produced\", _value: float(v: r._value) }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\n// minutos totais no período (aprox.)\nminutes_total = get(metric: \"maquina_ligada\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: true)\n  |> fill(value: 0.0)\n  |> map(fn: (r) => ({ _value: 1.0 }))\n  |> sum()\n\nmeta_period = minutes_total\n  |> map(fn: (r) => ({ kind: \"meta\", _value: float(v: r._value) * nominal_min }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nunion(tables: [produced, meta_period])\n  |> pivot(rowKey: [], columnKey: [\"kind\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({ _value: if nominal_min > 0.0 and float(v: r.meta) > 0.0 then (float(v: r.produced) / float(v: r.meta)) * 100.0 else 0.0 }))\n  |> map(fn: (r) => ({ r with _value: if r._value < 0.0 then 0.0 else if r._value > 200.0 then 200.0 else r._value }))"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 200 } }
+    },
+    {
+      "type": "stat",
+      "title": "Qualidade (%)",
+      "description": "Peças boas sobre o total produzido no período",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 6 },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\ngood = get(metric: \"contador_bom\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ kind: \"good\", _value: float(v: r._value) * scale }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nbad = get(metric: \"contador_ruim\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ kind: \"bad\", _value: float(v: r._value) * scale }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nall = union(tables: [good, bad])\n\ns = all |> sum()\n\ng = all |> filter(fn: (r) => r.kind == \"good\") |> sum()\n\nunion(tables: [g, s])\n  |> map(fn: (r) => ({ kind: if exists r.kind then r.kind else \"sum\", _value: float(v: r._value) }))\n  |> pivot(rowKey: [], columnKey: [\"kind\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({ _value: if float(v: r.sum) > 0.0 then (float(v: r.good) / float(v: r.sum)) * 100.0 else 0.0 }))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Peças boas (período)",
+      "description": "Delta do contador_bom no período selecionado",
+      "gridPos": { "x": 0, "y": 18, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "R951FEA4DE68E13C5" },
+      "targets": [
+        {
+          "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\nget(metric: \"contador_bom\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } }
+    },
+    {
+      "type": "stat",
+      "title": "Peças ruins (período)",
+      "description": "Delta do contador_ruim no período selecionado",
+      "gridPos": { "x": 6, "y": 18, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "R951FEA4DE68E13C5" },
+      "targets": [
+        {
+          "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\nget(metric: \"contador_ruim\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } }
+    },
+    {
+      "type": "stat",
+      "title": "Total (período)",
+      "description": "Peças boas + peças ruins no período selecionado",
+      "gridPos": { "x": 12, "y": 18, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "R951FEA4DE68E13C5" },
+      "targets": [
+        {
+          "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\ngood = get(metric: \"contador_bom\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nbad = get(metric: \"contador_ruim\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nunion(tables: [good, bad])\n  |> sum()"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } }
+    },
+
+    {
+      "type": "stat",
+      "title": "Meta (período)",
+    "description": "Meta de produção no período = taxa nominal (pcs/min) × minutos totais do período",
+      "gridPos": { "x": 18, "y": 18, "w": 6, "h": 5 },
+      "targets": [
+        {
+  "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\n// Entrada do operador: pcs/h. Meta exibida em pcs (turno/período) = pcs/h nominal × horas do período.\nnominal_h = float(v: ${planned_rate_h:raw})\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\n// horas totais no período (aprox.)\nhours_total = get(metric: \"maquina_ligada\")\n  |> aggregateWindow(every: 1h, fn: mean, createEmpty: true)\n  |> fill(value: 0.0)\n  |> map(fn: (r) => ({ _value: 1.0 }))\n  |> sum()\n\nhours_total\n  |> map(fn: (r) => ({ _value: float(v: r._value) * nominal_h }))"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } }
+    },
+
+    {
+      "type": "stat",
+      "title": "Atingimento (%)",
+      "description": "Produção no período ÷ meta no período",
+      "gridPos": { "x": 0, "y": 23, "w": 6, "h": 5 },
+      "targets": [
+        {
+          "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\n// Entrada do operador: pcs/h. Conversão central: nominal_min = nominal_h/60.\nnominal_h = float(v: ${planned_rate_h:raw})\nnominal_min = nominal_h / 60.0\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\ngood = get(metric: \"contador_bom\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ kind: \"p\", _value: float(v: r._value) * scale }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nbad = get(metric: \"contador_ruim\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ kind: \"p\", _value: float(v: r._value) * scale }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nproduced = union(tables: [good, bad])\n  |> sum()\n  |> map(fn: (r) => ({ kind: \"produced\", _value: float(v: r._value) }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nstate = get(metric: \"maquina_ligada\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: true)\n  |> fill(value: 0.0)\n\n// minutos totais no período (aprox.)\nminutes_total = state\n  |> map(fn: (r) => ({ _value: 1.0 }))\n  |> sum()\n\nmeta = minutes_total\n  |> map(fn: (r) => ({ kind: \"meta\", _value: float(v: r._value) * nominal_min }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nunion(tables: [produced, meta])\n  |> pivot(rowKey: [], columnKey: [\"kind\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({ _value: if nominal_min > 0.0 and float(v: r.meta) > 0.0 then (float(v: r.produced) / float(v: r.meta)) * 100.0 else 0.0 }))"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 150 } }
+    },
+
+    {
+      "type": "stat",
+      "title": "Performance real (turno) (% nominal)",
+  "description": "Performance do turno (hoje) = produção do turno ÷ (taxa nominal × duração do turno). Nota: este painel é equivalente ao 'Atingimento (turno) (%)' (mesma fórmula produced/meta); mantemos ambos por clareza para operação.",
+      "gridPos": { "x": 12, "y": 23, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "R951FEA4DE68E13C5" },
+      "targets": [
+        {
+          "query": "import \"date\"\nimport \"strings\"\n\nmode = \"${shift_mode}\"\nshift = \"${shift}\"\n\n// Horário local da planta: America/Sao_Paulo (UTC-3).\n// O Influx roda em UTC, então o range() precisa ser UTC = local + 3h.\nlocalOffset = 3h\n\n// escala: se o PLC contar pulsos, converte para peças (pulsos/peça)\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\n// horários vindos das variáveis (HH:MM, sempre em horário local)\nstartStr = if shift == \"1\" then \"${shift1_start}\" else if shift == \"2\" then \"${shift2_start}\" else \"${shift3_start}\"\nendStr   = if shift == \"1\" then \"${shift1_end}\"   else if shift == \"2\" then \"${shift2_end}\"   else \"${shift3_end}\"\n\n// Base do dia atual (em UTC) e construção dos horários do turno.\n// Aqui rawStart/rawEnd ainda representam os HH:MM escolhidos, e ajustamos cruzamento de meia-noite.\ntoday = string(v: date.truncate(t: now(), unit: 1d))\nstartISO = strings.replaceAll(v: today, t: \"00:00:00Z\", u: startStr + \":00Z\")\nendISO   = strings.replaceAll(v: today, t: \"00:00:00Z\", u: endStr + \":00Z\")\n\nrawStart = time(v: startISO)\nrawEnd   = time(v: endISO)\nendAdj = if rawEnd <= rawStart then rawEnd + 24h else rawEnd\n\n// Converte janela local -> UTC\nstartT = if mode == \"Turno\" then rawStart + localOffset else v.timeRangeStart\nstopT  = if mode == \"Turno\" then endAdj + localOffset   else v.timeRangeStop\n\n// Entrada do operador: pcs/h. Conversão central: nominal_min = nominal_h/60.\nnominal_h = float(v: ${planned_rate_h:raw})\nnominal_min = nominal_h / 60.0\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: startT, stop: stopT)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: startT, stop: stopT)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\nprod_good = get(metric: \"contador_bom\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nprod_bad = get(metric: \"contador_ruim\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nproduced = union(tables: [prod_good, prod_bad])\n  |> sum()\n  |> map(fn: (r) => ({ kind: \"produced\", _value: float(v: r._value) }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\n// minutos totais do turno (aprox.) via reamostragem\nminutes_total = get(metric: \"maquina_ligada\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: true)\n  |> fill(value: 0.0)\n  |> map(fn: (r) => ({ _value: 1.0 }))\n  |> sum()\n\nmeta = minutes_total\n  |> map(fn: (r) => ({ kind: \"meta\", _value: float(v: r._value) * nominal_min }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nunion(tables: [produced, meta])\n  |> pivot(rowKey: [], columnKey: [\"kind\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({ _value: if nominal_min > 0.0 and float(v: r.meta) > 0.0 then (float(v: r.produced) / float(v: r.meta)) * 100.0 else 0.0 }))\n  |> map(fn: (r) => ({ r with _value: if r._value < 0.0 then 0.0 else if r._value > 200.0 then 200.0 else r._value }))\n  |> last()"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 200 } }
+    },
+
+    {
+      "type": "stat",
+      "title": "Atingimento (turno) (%)",
+  "description": "Atingimento do turno (hoje) = produção do turno ÷ meta do turno. Nota: equivalente ao painel 'Performance real (turno) (% nominal)' (mesma fórmula produced/meta); mantemos ambos por clareza para operação.",
+      "gridPos": { "x": 18, "y": 23, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "R951FEA4DE68E13C5" },
+      "targets": [
+        {
+          "query": "// Reusa a mesma lógica de Performance real (turno) – é o mesmo cálculo (produced/meta)\n// Mantido em painel separado para deixar claro para operação\nimport \"date\"\nimport \"strings\"\n\nmode = \"${shift_mode}\"\nshift = \"${shift}\"\n\n// Horário local da planta: America/Sao_Paulo (UTC-3).\n// O Influx roda em UTC, então o range() precisa ser UTC = local + 3h.\nlocalOffset = 3h\n\n// escala: se o PLC contar pulsos, converte para peças (pulsos/peça)\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\nstartStr = if shift == \"1\" then \"${shift1_start}\" else if shift == \"2\" then \"${shift2_start}\" else \"${shift3_start}\"\nendStr   = if shift == \"1\" then \"${shift1_end}\"   else if shift == \"2\" then \"${shift2_end}\"   else \"${shift3_end}\"\n\ntoday = string(v: date.truncate(t: now(), unit: 1d))\nstartISO = strings.replaceAll(v: today, t: \"00:00:00Z\", u: startStr + \":00Z\")\nendISO   = strings.replaceAll(v: today, t: \"00:00:00Z\", u: endStr + \":00Z\")\n\nrawStart = time(v: startISO)\nrawEnd   = time(v: endISO)\nendAdj = if rawEnd <= rawStart then rawEnd + 24h else rawEnd\n\nstartT = if mode == \"Turno\" then rawStart + localOffset else v.timeRangeStart\nstopT  = if mode == \"Turno\" then endAdj + localOffset   else v.timeRangeStop\n\n// Entrada do operador: pcs/h. Conversão central: nominal_min = nominal_h/60.\nnominal_h = float(v: ${planned_rate_h:raw})\nnominal_min = nominal_h / 60.0\n\nget = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: startT, stop: stopT)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: startT, stop: stopT)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\nprod_good = get(metric: \"contador_bom\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nprod_bad = get(metric: \"contador_ruim\")\n  |> difference(nonNegative: true)\n  |> sum()\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nproduced = union(tables: [prod_good, prod_bad])\n  |> sum()\n  |> map(fn: (r) => ({ kind: \"produced\", _value: float(v: r._value) }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nminutes_total = get(metric: \"maquina_ligada\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: true)\n  |> fill(value: 0.0)\n  |> map(fn: (r) => ({ _value: 1.0 }))\n  |> sum()\n\nmeta = minutes_total\n  |> map(fn: (r) => ({ kind: \"meta\", _value: float(v: r._value) * nominal_min }))\n  |> keep(columns: [\"kind\", \"_value\"])\n\nunion(tables: [produced, meta])\n  |> pivot(rowKey: [], columnKey: [\"kind\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({ _value: if nominal_min > 0.0 and float(v: r.meta) > 0.0 then (float(v: r.produced) / float(v: r.meta)) * 100.0 else 0.0 }))\n  |> map(fn: (r) => ({ r with _value: if r._value < 0.0 then 0.0 else if r._value > 200.0 then 200.0 else r._value }))\n  |> last()"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 200 } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Taxa de Produção (Últimas 2 Horas)",
+      "gridPos": { "x": 0, "y": 6, "w": 18, "h": 12 },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "// pcs/min por minuto (delta do contador) – PRODUÇÃO TOTAL (boas + ruins)\n// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\n// Entrada do operador: pcs/h. Conversão central: nominal_min = nominal_h/60.\nnominal_h = float(v: ${planned_rate_h:raw})\nnominal_min = nominal_h / 60.0\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\nmax_per_min = if nominal_min > 0.0 then (nominal_min * 3.0) else 500.0\n\nget2h = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: -2h)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: -2h)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n\ngood = get2h(metric: \"contador_bom\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nbad = get2h(metric: \"contador_ruim\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\nunion(tables: [good, bad])\n  |> sum()\n  |> filter(fn: (r) => r._value >= 0.0 and r._value < max_per_min)\n  |> fill(column: \"_value\", value: 0.0)"
+        }
+      ]
+  },
+
+  {
+      "type": "timeseries",
+      "title": "Debug: deltas por minuto (bom/ruim/total)",
+      "description": "Use este painel para bater com a produção real: ele mostra quantas peças/min saíram (boas e ruins) e o total. (1 pulso = 1 peça com pulses_per_piece=1).",
+      "gridPos": { "x": 18, "y": 6, "w": 6, "h": 12 },
+      "datasource": { "type": "influxdb", "uid": "R951FEA4DE68E13C5" },
+      "targets": [
+        {
+          "query": "// Compat: aceita schema novo (prometheus/name) e antigo (s7_db1/_field).\nscale = 1.0 / float(v: ${pulses_per_piece:raw})\n\nmk = (metric) =>\n  union(tables: [\n    from(bucket: \"processo\")\n      |> range(start: -2h)\n      |> filter(fn: (r) => r._measurement == \"prometheus\" and r.name == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\"),\n    from(bucket: \"processo\")\n      |> range(start: -2h)\n      |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == metric)\n      |> filter(fn: (r) => r[\"ip\"] =~ /^${ip:regex}$/ or \"${ip:raw}\" == \"\")\n  ])\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> difference(nonNegative: true)\n  |> map(fn: (r) => ({ r with _value: float(v: r._value) * scale }))\n\ngood = mk(metric: \"contador_bom\") |> map(fn: (r) => ({ r with serie: \"bom\" }))\nbad  = mk(metric: \"contador_ruim\") |> map(fn: (r) => ({ r with serie: \"ruim\" }))\n\ntotal = union(tables: [mk(metric: \"contador_bom\"), mk(metric: \"contador_ruim\")])\n  |> sum()\n  |> map(fn: (r) => ({ r with serie: \"total\" }))\n\nunion(tables: [good, bad, total])\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      }
+    }
+  ]
+}

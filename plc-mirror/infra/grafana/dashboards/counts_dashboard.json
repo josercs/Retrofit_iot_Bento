@@ -1,0 +1,77 @@
+{
+  "uid": "counts-plc-db1",
+  "title": "Contagem PLC (DB1)",
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "10s",
+  "timezone": "",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+  },
+  "panels": [
+    {
+      "title": "Contador Bom",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\")\n  |> filter(fn: (r) => r._field == \"contador_bom\")\n  |> yield(name: \"raw\")"
+        }
+      ]
+    },
+    {
+      "title": "Contador Ruim",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\")\n  |> filter(fn: (r) => r._field == \"contador_ruim\")\n  |> filter(fn: (r) => not exists r.tenant_id or v.varTenant == \"All\" or r.tenant_id == v.varTenant)\n  |> filter(fn: (r) => not exists r.plc_id or v.varPlc == \"All\" or r.plc_id == v.varPlc)\n  |> yield(name: \"raw\")"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "varTenant",
+        "label": "Tenant",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "R951FEA4DE68E13C5"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"processo\", tag: \"tenant_id\")",
+        "includeAll": true,
+        "allValue": "All",
+        "refresh": 1
+      },
+      {
+        "name": "varPlc",
+        "label": "PLC",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "R951FEA4DE68E13C5"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"processo\", tag: \"plc_id\")",
+        "includeAll": true,
+        "allValue": "All",
+        "refresh": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "uid": "edge-health-corrigido",
+  "title": "Edge Health (Simplificado)",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "10s",
+  "tags": [
+    "health",
+    "edge"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ip",
+        "label": "IP",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "R951FEA4DE68E13C5"
+        },
+        "query": "import \"influxdata/influxdb/v1\"\nv1.tagValues(bucket: \"processo\", tag: \"ip\")",
+        "refresh": 1,
+        "hide": 0,
+        "multi": true,
+        "includeAll": true,
+        "allValue": "",
+        "current": {
+          "text": "All",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Edge UP",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"edge_up\")\n  |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\")\n  |> last()"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Leituras OK/min",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r._field == \"plc_read_ok_total\")\n  |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\")\n  |> derivative(unit: 1m, nonNegative: false)\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> last()"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Peças Boas/min",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\")\n  |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\")\n  |> derivative(unit: 1m, nonNegative: false)\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> last()"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Produção (Última Hora)",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "R951FEA4DE68E13C5"
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"processo\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"s7_db1\" and r._field == \"contador_bom\")\n  |> filter(fn: (r) => r[\"ip\"] == \"${ip:raw}\" or \"${ip:raw}\" == \"\")\n  |> derivative(unit: 1m, nonNegative: false)"
+        }
+      ]
+    }
+  ]
+}
